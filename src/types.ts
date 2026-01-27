@@ -153,11 +153,12 @@ export const END_STATUSES = [
   'FINALIZADO', 'ENTREGUE', 'APROVADO'
 ];
 
-// Status específicos para medir tempo de edição (VIDEO: EDITANDO -> APROVADO)
+// Status específicos para medir tempo de edição (VIDEO: EDITANDO -> APROVADO ou CONCLUÍDO)
 export const EDITING_START_STATUSES = [
   'VIDEO: EDITANDO', 'EDITANDO'
 ];
 
+// Fim da edição: APROVADO ou CONCLUÍDO (o que vier primeiro)
 export const EDITING_END_STATUSES = [
-  'APROVADO'
+  'APROVADO', 'CONCLUÍDO', 'CONCLUIDO', 'COMPLETED', 'DONE', 'CLOSED', 'FINALIZADO', 'ENTREGUE'
 ];

@@ -142,7 +142,7 @@ export class ClickUpService {
 
     /**
      * Fetches time in status for multiple tasks and returns a map of taskId -> editing time in ms
-     * Editing time = time in "video: editando" status
+     * Editing time = time in "video: editando" status (até APROVADO ou CONCLUÍDO)
      */
     async fetchEditingTimeForTasks(taskIds: string[]): Promise<Map<string, number>> {
         const editingTimeMap = new Map<string, number>();
@@ -159,9 +159,11 @@ export class ClickUpService {
                     let editingTime = 0;
                     for (const [status, data] of Object.entries(timeInStatus)) {
                         const statusUpper = status.toUpperCase();
+                        // Conta tempo em EDITANDO (este é o tempo que queremos medir)
                         if (statusUpper.includes('EDITANDO') || statusUpper.includes('VIDEO: EDITANDO')) {
                             // time is in milliseconds
-                            editingTime += (data as any).total_time?.by_minute * 60 * 1000 || (data as any).time || 0;
+                            const timeMs = (data as any).total_time?.by_minute * 60 * 1000 || (data as any).time || 0;
+                            editingTime += timeMs;
                         }
                     }
                     editingTimeMap.set(taskId, editingTime);

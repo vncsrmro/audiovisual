@@ -251,6 +251,7 @@ export class ClickUpService {
                     const phaseTime: TaskPhaseTime = {
                         editingTimeMs: 0,
                         revisionTimeMs: 0,
+                        alterationTimeMs: 0,
                         approvalTimeMs: 0,
                         totalTimeMs: 0
                     };
@@ -276,9 +277,13 @@ export class ClickUpService {
                         if (statusUpper === 'VIDEO: EDITANDO') {
                             phaseTime.editingTimeMs += timeMs;
                         }
-                        // Tempo em REVISÃO (PARA REVISÃO, REVISANDO, ALTERAÇÃO)
-                        else if (statusUpper === 'PARA REVISÃO' || statusUpper === 'REVISANDO' || statusUpper === 'ALTERAÇÃO') {
+                        // Tempo em REVISÃO (PARA REVISÃO, REVISANDO)
+                        else if (statusUpper === 'PARA REVISÃO' || statusUpper === 'REVISANDO') {
                             phaseTime.revisionTimeMs += timeMs;
+                        }
+                        // Tempo em ALTERAÇÃO (separado da revisão)
+                        else if (statusUpper === 'ALTERAÇÃO') {
+                            phaseTime.alterationTimeMs += timeMs;
                         }
                         // Tempo em APROVADO
                         else if (statusUpper === 'APROVADO') {

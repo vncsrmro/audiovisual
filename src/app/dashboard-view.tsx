@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import {
     Users, TrendingUp, Target, Award, Clock, Zap, BarChart3, GitCompare,
-    ArrowUp, ArrowDown, Calendar, RefreshCw, Timer, ClipboardList, Edit3, RotateCcw, CheckCircle
+    ArrowUp, ArrowDown, Calendar, RefreshCw, Timer, ClipboardList, Edit3, RotateCcw, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
@@ -149,10 +149,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
             // Phase metrics
             avgEditingTime: number;
             avgRevisionTime: number;
+            avgAlterationTime: number;
             totalEditingTime: number;
             totalRevisionTime: number;
+            totalAlterationTime: number;
             videosWithRevision: number;
+            videosWithAlteration: number;
             revisionRate: number;
+            alterationRate: number;
         }>();
 
         filteredVideos.forEach(video => {
@@ -168,10 +172,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     color: editorColorMap.get(video.editorName) || '#6b7280',
                     avgEditingTime: 0,
                     avgRevisionTime: 0,
+                    avgAlterationTime: 0,
                     totalEditingTime: 0,
                     totalRevisionTime: 0,
+                    totalAlterationTime: 0,
                     videosWithRevision: 0,
-                    revisionRate: 0
+                    videosWithAlteration: 0,
+                    revisionRate: 0,
+                    alterationRate: 0
                 });
             }
 
@@ -191,8 +199,12 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                 if (video.phaseTime) {
                     stats.totalEditingTime += video.phaseTime.editingTimeMs / (1000 * 60 * 60);
                     stats.totalRevisionTime += video.phaseTime.revisionTimeMs / (1000 * 60 * 60);
+                    stats.totalAlterationTime += (video.phaseTime.alterationTimeMs || 0) / (1000 * 60 * 60);
                     if (video.phaseTime.revisionTimeMs > 0) {
                         stats.videosWithRevision += 1;
+                    }
+                    if (video.phaseTime.alterationTimeMs && video.phaseTime.alterationTimeMs > 0) {
+                        stats.videosWithAlteration += 1;
                     }
                 }
             } else if (['IN PROGRESS', 'DOING', 'REVIEW'].includes(video.status)) {
@@ -207,7 +219,9 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
             avgTimeToComplete: s.videos > 0 ? s.leadTime / s.videos : 0,
             avgEditingTime: s.videos > 0 ? s.totalEditingTime / s.videos : 0,
             avgRevisionTime: s.videos > 0 ? s.totalRevisionTime / s.videos : 0,
-            revisionRate: s.videos > 0 ? (s.videosWithRevision / s.videos) * 100 : 0
+            avgAlterationTime: s.videos > 0 ? s.totalAlterationTime / s.videos : 0,
+            revisionRate: s.videos > 0 ? (s.videosWithRevision / s.videos) * 100 : 0,
+            alterationRate: s.videos > 0 ? (s.videosWithAlteration / s.videos) * 100 : 0
         })).sort((a, b) => b.videos - a.videos);
     }, [filteredVideos, editorColorMap]);
 
@@ -892,14 +906,30 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 </div>
                             </CardContent>
                         </Card>
+                        <Card className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 border-orange-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Tempo Médio Alteração</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-bold text-white">
+                                                {formatHours(editorStats.reduce((acc, e) => acc + e.avgAlterationTime, 0) / (editorStats.length || 1))}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">média da equipe</p>
+                                    </div>
+                                    <AlertCircle className="w-8 h-8 opacity-50 text-orange-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
                         <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border-emerald-500/20 backdrop-blur">
                             <CardContent className="p-4">
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Taxa de Revisão</p>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Taxa de Alteração</p>
                                         <div className="flex items-baseline gap-1">
                                             <span className="text-2xl font-bold text-white">
-                                                {(editorStats.reduce((acc, e) => acc + e.revisionRate, 0) / (editorStats.length || 1)).toFixed(0)}
+                                                {(editorStats.reduce((acc, e) => acc + e.alterationRate, 0) / (editorStats.length || 1)).toFixed(0)}
                                             </span>
                                             <span className="text-sm text-slate-400">%</span>
                                         </div>
@@ -909,6 +939,10 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 </div>
                             </CardContent>
                         </Card>
+                    </div>
+
+                    {/* Second Row of KPIs */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <Card className="bg-gradient-to-br from-violet-500/20 to-violet-500/5 border-violet-500/20 backdrop-blur">
                             <CardContent className="p-4">
                                 <div className="flex items-start justify-between">
@@ -926,6 +960,57 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 </div>
                             </CardContent>
                         </Card>
+                        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-500/5 border-amber-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Total Horas Revisão</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-bold text-white">
+                                                {editorStats.reduce((acc, e) => acc + e.totalRevisionTime, 0).toFixed(0)}
+                                            </span>
+                                            <span className="text-sm text-slate-400">h</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">toda a equipe</p>
+                                    </div>
+                                    <RotateCcw className="w-8 h-8 opacity-50 text-amber-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 border-orange-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Total Horas Alteração</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-bold text-white">
+                                                {editorStats.reduce((acc, e) => acc + e.totalAlterationTime, 0).toFixed(0)}
+                                            </span>
+                                            <span className="text-sm text-slate-400">h</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">toda a equipe</p>
+                                    </div>
+                                    <AlertCircle className="w-8 h-8 opacity-50 text-orange-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border-emerald-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Taxa de Revisão</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-bold text-white">
+                                                {(editorStats.reduce((acc, e) => acc + e.revisionRate, 0) / (editorStats.length || 1)).toFixed(0)}
+                                            </span>
+                                            <span className="text-sm text-slate-400">%</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">vídeos com revisão</p>
+                                    </div>
+                                    <CheckCircle className="w-8 h-8 opacity-50 text-emerald-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
 
                     {/* Detailed Table */}
@@ -936,7 +1021,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 Métricas por Fase do Workflow
                             </CardTitle>
                             <CardDescription className="text-slate-500">
-                                Tempo em cada etapa: Edição → Revisão/Alteração → Aprovação
+                                Tempo em cada etapa: Edição → Revisão → Alteração → Aprovação
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -958,9 +1043,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                     Tempo Revisão
                                                 </div>
                                             </th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <AlertCircle className="w-3 h-3" />
+                                                    Tempo Alteração
+                                                </div>
+                                            </th>
                                             <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Taxa Revisão</th>
-                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Total Edição</th>
-                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Total Revisão</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Taxa Alteração</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/50">
@@ -993,6 +1083,13 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                     )}
                                                 </td>
                                                 <td className="text-center px-4 py-3">
+                                                    {editor.avgAlterationTime > 0 ? (
+                                                        <span className="font-medium text-orange-400">{formatHours(editor.avgAlterationTime)}</span>
+                                                    ) : (
+                                                        <span className="text-slate-600">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="text-center px-4 py-3">
                                                     {editor.revisionRate > 0 ? (
                                                         <Badge
                                                             variant="outline"
@@ -1013,11 +1110,26 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                         </Badge>
                                                     )}
                                                 </td>
-                                                <td className="text-center px-4 py-3 text-slate-300">
-                                                    {editor.totalEditingTime.toFixed(1)}h
-                                                </td>
-                                                <td className="text-center px-4 py-3 text-slate-300">
-                                                    {editor.totalRevisionTime > 0 ? `${editor.totalRevisionTime.toFixed(1)}h` : '-'}
+                                                <td className="text-center px-4 py-3">
+                                                    {editor.alterationRate > 0 ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "border-0",
+                                                                editor.alterationRate < 30
+                                                                    ? "bg-emerald-500/10 text-emerald-400"
+                                                                    : editor.alterationRate < 60
+                                                                    ? "bg-orange-500/10 text-orange-400"
+                                                                    : "bg-red-500/10 text-red-400"
+                                                            )}
+                                                        >
+                                                            {editor.alterationRate.toFixed(0)}%
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-0">
+                                                            0%
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -1039,13 +1151,13 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                 {formatHours(editorStats.reduce((acc, e) => acc + e.avgRevisionTime, 0) / (editorStats.length || 1))}
                                             </td>
                                             <td className="text-center px-4 py-3 text-slate-300">
+                                                {formatHours(editorStats.reduce((acc, e) => acc + e.avgAlterationTime, 0) / (editorStats.length || 1))}
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">
                                                 {(editorStats.reduce((acc, e) => acc + e.revisionRate, 0) / (editorStats.length || 1)).toFixed(0)}%
                                             </td>
                                             <td className="text-center px-4 py-3 text-slate-300">
-                                                {editorStats.reduce((acc, e) => acc + e.totalEditingTime, 0).toFixed(1)}h
-                                            </td>
-                                            <td className="text-center px-4 py-3 text-slate-300">
-                                                {editorStats.reduce((acc, e) => acc + e.totalRevisionTime, 0).toFixed(1)}h
+                                                {(editorStats.reduce((acc, e) => acc + e.alterationRate, 0) / (editorStats.length || 1)).toFixed(0)}%
                                             </td>
                                         </tr>
                                     </tbody>
@@ -1062,7 +1174,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 Distribuição de Tempo por Editor
                             </CardTitle>
                             <CardDescription className="text-slate-500">
-                                Comparativo de tempo em edição vs revisão
+                                Comparativo de tempo em edição vs revisão vs alteração
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="h-[400px]">
@@ -1073,6 +1185,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                             name: e.name,
                                             'Tempo Edição': e.avgEditingTime,
                                             'Tempo Revisão': e.avgRevisionTime,
+                                            'Tempo Alteração': e.avgAlterationTime,
                                             color: e.color
                                         }))}
                                         margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
@@ -1099,7 +1212,8 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                                         <Legend />
                                         <Bar dataKey="Tempo Edição" fill="#3b82f6" stackId="a" radius={[0, 0, 0, 0]} />
-                                        <Bar dataKey="Tempo Revisão" fill="#f59e0b" stackId="a" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="Tempo Revisão" fill="#f59e0b" stackId="a" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="Tempo Alteração" fill="#f97316" stackId="a" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </ChartWrapper>

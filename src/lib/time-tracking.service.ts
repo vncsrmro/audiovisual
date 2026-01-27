@@ -133,11 +133,19 @@ export class TimeTrackingService {
     }
 
     /**
-     * Checks if a status is a revision/alteration status (PARA REVISÃO, REVISANDO, ALTERAÇÃO)
+     * Checks if a status is a revision status (PARA REVISÃO, REVISANDO)
      */
     isRevisionStatus(status: string): boolean {
         const statusUpper = status.toUpperCase();
-        return statusUpper === 'PARA REVISÃO' || statusUpper === 'REVISANDO' || statusUpper === 'ALTERAÇÃO';
+        return statusUpper === 'PARA REVISÃO' || statusUpper === 'REVISANDO';
+    }
+
+    /**
+     * Checks if a status is an alteration status (ALTERAÇÃO)
+     */
+    isAlterationStatus(status: string): boolean {
+        const statusUpper = status.toUpperCase();
+        return statusUpper === 'ALTERAÇÃO';
     }
 
     /**
@@ -355,12 +363,13 @@ export class TimeTrackingService {
 
     /**
      * Calculates time spent in each phase of the workflow
-     * Phases: EDITANDO, REVISÃO/ALTERAÇÃO, APROVADO
+     * Phases: EDITANDO, REVISÃO, ALTERAÇÃO, APROVADO
      */
     calculatePhaseTime(history: TaskStatusEvent[]): TaskPhaseTime {
         const result: TaskPhaseTime = {
             editingTimeMs: 0,
             revisionTimeMs: 0,
+            alterationTimeMs: 0,
             approvalTimeMs: 0,
             totalTimeMs: 0
         };
@@ -370,19 +379,21 @@ export class TimeTrackingService {
         }
 
         let currentPhaseStart: number | null = null;
-        let currentPhase: 'editing' | 'revision' | 'approval' | null = null;
+        let currentPhase: 'editing' | 'revision' | 'alteration' | 'approval' | null = null;
 
         for (let i = 0; i < history.length; i++) {
             const event = history[i];
             const newStatus = event.newStatus.toUpperCase();
 
             // Determine the new phase
-            let newPhase: 'editing' | 'revision' | 'approval' | 'end' | null = null;
+            let newPhase: 'editing' | 'revision' | 'alteration' | 'approval' | 'end' | null = null;
 
             if (this.isEditingStartStatus(newStatus)) {
                 newPhase = 'editing';
             } else if (this.isRevisionStatus(newStatus)) {
                 newPhase = 'revision';
+            } else if (this.isAlterationStatus(newStatus)) {
+                newPhase = 'alteration';
             } else if (this.isApprovalStatus(newStatus)) {
                 newPhase = 'approval';
             } else if (this.isEndStatus(newStatus)) {
@@ -399,6 +410,9 @@ export class TimeTrackingService {
                         break;
                     case 'revision':
                         result.revisionTimeMs += duration;
+                        break;
+                    case 'alteration':
+                        result.alterationTimeMs += duration;
                         break;
                     case 'approval':
                         result.approvalTimeMs += duration;
@@ -427,6 +441,9 @@ export class TimeTrackingService {
                     break;
                 case 'revision':
                     result.revisionTimeMs += duration;
+                    break;
+                case 'alteration':
+                    result.alterationTimeMs += duration;
                     break;
                 case 'approval':
                     result.approvalTimeMs += duration;
@@ -465,6 +482,7 @@ export class TimeTrackingService {
         const defaultPhaseTime: TaskPhaseTime = {
             editingTimeMs: 0,
             revisionTimeMs: 0,
+            alterationTimeMs: 0,
             approvalTimeMs: 0,
             totalTimeMs: 0
         };

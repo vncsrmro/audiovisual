@@ -78,8 +78,9 @@ export interface ClickUpTask {
 
 // Tempo por fase do workflow
 export interface TaskPhaseTime {
-  editingTimeMs: number;      // Tempo em EDITANDO
-  revisionTimeMs: number;     // Tempo em REVISÃO/ALTERAÇÃO
+  editingTimeMs: number;      // Tempo em VIDEO: EDITANDO
+  revisionTimeMs: number;     // Tempo em PARA REVISÃO + REVISANDO
+  alterationTimeMs: number;   // Tempo em ALTERAÇÃO
   approvalTimeMs: number;     // Tempo em APROVADO (antes de concluir)
   totalTimeMs: number;        // Tempo total (criação até conclusão)
 }
@@ -102,14 +103,18 @@ export interface NormalizedTask {
 
 // Métricas detalhadas por fase para cada editor
 export interface EditorPhaseMetrics {
-  avgEditingTimeHours: number;    // Média de tempo em edição
-  avgRevisionTimeHours: number;   // Média de tempo em revisão/alteração
-  avgApprovalTimeHours: number;   // Média de tempo até aprovação
-  avgTotalTimeHours: number;      // Média de tempo total
-  totalEditingTimeHours: number;  // Total de horas em edição
-  totalRevisionTimeHours: number; // Total de horas em revisão
-  videosWithRevision: number;     // Quantos vídeos tiveram revisão
-  revisionRate: number;           // Taxa de revisão (%)
+  avgEditingTimeHours: number;      // Média de tempo em edição
+  avgRevisionTimeHours: number;     // Média de tempo em revisão
+  avgAlterationTimeHours: number;   // Média de tempo em alteração
+  avgApprovalTimeHours: number;     // Média de tempo até aprovação
+  avgTotalTimeHours: number;        // Média de tempo total
+  totalEditingTimeHours: number;    // Total de horas em edição
+  totalRevisionTimeHours: number;   // Total de horas em revisão
+  totalAlterationTimeHours: number; // Total de horas em alteração
+  videosWithRevision: number;       // Quantos vídeos tiveram revisão
+  videosWithAlteration: number;     // Quantos vídeos tiveram alteração
+  revisionRate: number;             // Taxa de revisão (%)
+  alterationRate: number;           // Taxa de alteração (%)
 }
 
 export interface EditorStats {

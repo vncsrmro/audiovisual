@@ -232,13 +232,13 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         ];
     }, [comparisonData, editorStats, teamMetrics]);
 
-    // Toggle editor selection for comparison
+    // Toggle editor selection for comparison (até 6 editores)
     const toggleEditorSelection = (editorName: string) => {
         setSelectedEditors(prev => {
             if (prev.includes(editorName)) {
                 return prev.filter(e => e !== editorName);
             }
-            if (prev.length >= 3) {
+            if (prev.length >= 6) {
                 return [...prev.slice(1), editorName];
             }
             return [...prev, editorName];
@@ -607,8 +607,11 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     <Card className="mb-6 bg-slate-900/50 border-slate-800/50 backdrop-blur">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-base font-medium text-slate-200">
-                                Selecione até 3 editores para comparar
+                                Selecione até 6 editores para comparar
                             </CardTitle>
+                            <CardDescription className="text-slate-500">
+                                {selectedEditors.length}/6 selecionados
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="flex flex-wrap gap-2">
@@ -756,7 +759,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                             </Card>
 
                             {/* Individual Cards */}
-                            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {comparisonData.editors.map((editor) => (
                                     <Card key={editor.name} className="bg-slate-900/50 border-slate-800/50 backdrop-blur overflow-hidden">
                                         <div className="h-1" style={{ backgroundColor: editor.color }} />

@@ -316,7 +316,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <Badge variant="outline" className={`border-0 font-medium ${getStatusBadgeColor(video.status)}`}>
-                                                {video.status}
+                                                {video.rawStatus}
                                             </Badge>
                                         </td>
                                         <td className="px-6 py-4 text-right text-slate-300 font-mono">

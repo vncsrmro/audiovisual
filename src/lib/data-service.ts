@@ -9,32 +9,67 @@ export class DataService {
     normalizeTasks(tasks: ClickUpTask[]): NormalizedTask[] {
         return tasks.map(task => {
             // 1. Extract Lead Time (Closed - Created)
-            // Dates in ClickUp are Unix timestamps in milliseconds (string)
             const created = parseInt(task.date_created);
             const closed = task.date_closed ? parseInt(task.date_closed) : null;
 
             // 2. Extract Editor (First Assignee)
             const assignee = task.assignees.length > 0 ? task.assignees[0] : null;
 
-            // 3. Extract Time Tracked (Convert ms to Hours)
-            // Note: ClickUp 'time_spent' is in milliseconds
-            const timeTrackedMs = task.time_spent || 0;
+            // 3. Extract Time Tracked
+            // Priority: time_spent (native) -> Custom Field "Horas" -> Custom Field "Tempo"
+            let timeTrackedMs = task.time_spent || 0;
+
+            if (timeTrackedMs === 0) {
+                // Fallback: Look for custom fields that might contain time
+                const hoursField = task.custom_fields.find(f =>
+                    ['horas', 'tempo', 'duração', 'time', 'duration', 'hours'].some(key => f.name.toLowerCase().includes(key))
+                );
+                if (hoursField?.value) {
+                    // Heuristic: If value is small (< 1000), assume it's Hours, not ms.
+                    // If it's a string, try parsing.
+                    const val = parseFloat(hoursField.value);
+                    if (!isNaN(val)) {
+                        if (val > 10000) timeTrackedMs = val; // Likely ms
+                        else timeTrackedMs = val * 60 * 60 * 1000; // Assume hours, convert to ms
+                    }
+                }
+            }
+
             const timeTrackedHours = parseFloat((timeTrackedMs / (1000 * 60 * 60)).toFixed(2));
 
-            // 4. Custom Fields (Example: Video Type)
-            // You'll need to inspect your actual custom_fields IDs to map this correctly.
-            // For now, we leave it generic or look for a field named "Type"
-            const typeField = task.custom_fields.find(f => f.name.toLowerCase().includes('tipo'));
-            const videoType = typeField?.type_config?.options
-                ? typeField.type_config.options[typeField.value]?.name
-                : (typeof typeField?.value === 'string' ? typeField.value : 'Unknown');
+            // 4. Custom Fields (Video Type)
+            // Look for a field matching "Tipo", "Type", "Categoria"
+            const typeField = task.custom_fields.find(f =>
+                ['tipo', 'type', 'categoria', 'category', 'formato'].some(key => f.name.toLowerCase().includes(key))
+            );
+
+            let videoType = 'Outros';
+            if (typeField) {
+                if (typeField.type_config?.options && typeof typeField.value === 'number') {
+                    // Dropdown index
+                    videoType = typeField.type_config.options[typeField.value]?.name || 'Outros';
+                } else if (typeof typeField.value === 'string') {
+                    videoType = typeField.value;
+                }
+            }
+
+            // 5. Normalizing Status (Handle Portuguese)
+            let normalizedStatus = task.status.status.toUpperCase();
+            if (['CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE', 'CLOSED', 'COMPLETE', 'DONE'].includes(normalizedStatus)) {
+                normalizedStatus = 'COMPLETED';
+            } else if (['EM ANDAMENTO', 'ANDAMENTO', 'FAZENDO', 'DOING', 'IN PROGRESS', 'RUNNING'].includes(normalizedStatus)) {
+                normalizedStatus = 'IN PROGRESS';
+            } else if (['REVISÃO', 'REVISAO', 'REVIEW', 'QA', 'APROVAÇÃO'].includes(normalizedStatus)) {
+                normalizedStatus = 'REVIEW';
+            }
 
             return {
                 id: task.id,
                 title: task.name,
-                status: task.status.status.toUpperCase(),
-                editorName: assignee ? assignee.username : 'Unassigned',
-                editorId: assignee ? assignee.id : null,
+                status: normalizedStatus, // Use the normalized ENUM
+                rawStatus: task.status.status, // Keep original for display if needed
+                editorName: assignee ? assignee.username : 'Não Atribuído',
+                editorId: assignee ? assignee.id : 0,
                 dateCreated: created,
                 dateClosed: closed,
                 timeTrackedHours,

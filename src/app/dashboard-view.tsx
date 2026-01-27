@@ -27,6 +27,25 @@ interface DashboardViewProps {
     lastUpdated: number;
 }
 
+// --- CUSTOM TOOLTIP ---
+function CustomTooltip({ active, payload, label }: any) {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-slate-900/90 border border-slate-700 p-4 rounded-xl shadow-2xl backdrop-blur-xl">
+                <p className="font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2 capitalize">{label}</p>
+                {payload.map((entry: any, index: number) => (
+                    <div key={index} className="flex items-center gap-3 mb-1 last:mb-0">
+                        <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: entry.color, backgroundColor: entry.color }} />
+                        <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{entry.name}:</span>
+                        <span className="text-slate-100 font-bold font-mono text-lg">{entry.value}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+}
+
 export default function DashboardView({ initialData, lastUpdated }: DashboardViewProps) {
     const [isMounted, setIsMounted] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -102,6 +121,24 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         const topCount = chartDataEditors.length > 0 ? chartDataEditors[0].videos : 0;
 
         return { totalVideos, totalHours, avgHours, topName, topCount, chartDataEditors, chartDataTypes };
+    }, [filteredVideos]);
+
+    // --- TEMPORAL DATA FOR AREA CHART ---
+    const chartDataTimeline = useMemo(() => {
+        const timeline: Record<string, number> = {};
+        filteredVideos.filter(v => v.dateClosed).forEach(v => {
+            const date = new Date(v.dateClosed!);
+            const key = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            timeline[key] = (timeline[key] || 0) + 1;
+        });
+        return Object.entries(timeline)
+            .sort((a, b) => {
+                const [d1, m1] = a[0].split('/').map(Number);
+                const [d2, m2] = b[0].split('/').map(Number);
+                const y = new Date().getFullYear();
+                return new Date(y, m1 - 1, d1).getTime() - new Date(y, m2 - 1, d2).getTime();
+            })
+            .map(([date, count]) => ({ date, count }));
     }, [filteredVideos]);
 
 
@@ -399,178 +436,6 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
     );
 }
 
-// --- SUB COMPONENTS ---
-
-// --- CUSTOM TOOLTIP ---
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-slate-900/90 border border-slate-700 p-4 rounded-xl shadow-2xl backdrop-blur-xl">
-                <p className="font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2 mb-1 last:mb-0">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">{entry.name}:</span>
-                        <span className="text-slate-100 font-bold font-mono">{entry.value}</span>
-                    </div>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
-
-// ... inside main component ...
-
-// --- TEMPORAL DATA FOR AREA CHART ---
-const chartDataTimeline = useMemo(() => {
-    const timeline: Record<string, number> = {};
-    filteredVideos.filter(v => v.dateClosed).forEach(v => {
-        const date = new Date(v.dateClosed!);
-        const key = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        timeline[key] = (timeline[key] || 0) + 1;
-    });
-    return Object.entries(timeline)
-        .sort((a, b) => {
-            const [d1, m1] = a[0].split('/').map(Number);
-            const [d2, m2] = b[0].split('/').map(Number);
-            return new Date(2025, m1 - 1, d1).getTime() - new Date(2025, m2 - 1, d2).getTime(); // Rough sort
-        })
-        .map(([date, count]) => ({ date, count }));
-}, [filteredVideos]);
-
-// ... (inside ChartWrapper area) ...
-
-{/* 1. TIMELINE OVERVIEW (AREA CHART) */ }
-<Card className="col-span-1 lg:col-span-3 bg-slate-900/40 border-slate-800/60 backdrop-blur-md shadow-2xl mb-6">
-    <CardHeader>
-        <CardTitle className="text-lg font-medium text-slate-200 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-cyan-400" />
-            Performance Temporal
-        </CardTitle>
-        <CardDescription className="text-slate-500">Volume de entregas ao longo do tempo</CardDescription>
-    </CardHeader>
-    <CardContent className="h-[250px]">
-        <ChartWrapper>
-            <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartDataTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                        <linearGradient id="colorVideos" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis
-                        dataKey="date"
-                        stroke="#475569"
-                        tick={{ fill: '#64748b', fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                    />
-                    <YAxis
-                        stroke="#475569"
-                        tick={{ fill: '#64748b', fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                        allowDecimals={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                    <Area
-                        type="monotone"
-                        dataKey="count"
-                        name="Entregas"
-                        stroke="#0ea5e9"
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill="url(#colorVideos)"
-                    />
-                </AreaChart>
-            </ResponsiveContainer>
-        </ChartWrapper>
-    </CardContent>
-</Card>
-
-{/* CHARTS ROW */ }
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-
-    {/* BAR CHART: VIDEOS PER EDITOR */}
-    <Card className="col-span-2 bg-slate-900/40 border-slate-800/60 backdrop-blur-md shadow-xl overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-        <CardHeader>
-            <CardTitle className="text-lg font-medium text-slate-200">Volume por Editor</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[320px]">
-            <ChartWrapper>
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={kpis.chartDataEditors} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                        <XAxis
-                            dataKey="name"
-                            stroke="#475569"
-                            tick={{ fill: '#64748b', fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                            interval={0}
-                        />
-                        <YAxis
-                            stroke="#475569"
-                            tick={{ fill: '#64748b', fontSize: 11 }}
-                            axisLine={false}
-                            tickLine={false}
-                            allowDecimals={false}
-                        />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff', opacity: 0.05 }} />
-                        <Bar dataKey="videos" name="Vídeos" radius={[6, 6, 0, 0]} maxBarSize={50}>
-                            {kpis.chartDataEditors.map((entry, index) => (
-                                <Cell
-                                    key={`cell-${index}`}
-                                    fill={COLORS[index % COLORS.length]}
-                                    className="opacity-80 hover:opacity-100 transition-opacity"
-                                />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
-            </ChartWrapper>
-        </CardContent>
-    </Card>
-
-    {/* PIE CHART: TYPES */}
-    <Card className="col-span-1 bg-slate-900/40 border-slate-800/60 backdrop-blur-md shadow-xl">
-        <CardHeader>
-            <CardTitle className="text-lg font-medium text-slate-200">Tipos de Vídeo</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[320px] flex justify-center items-center relative">
-            <ChartWrapper>
-                <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                        <Pie
-                            data={kpis.chartDataTypes}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={70}
-                            outerRadius={90}
-                            paddingAngle={5}
-                            dataKey="value"
-                            nameKey="name"
-                            stroke="none"
-                        >
-                            {kpis.chartDataTypes.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Pie>
-                        <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                </ResponsiveContainer>
-            </ChartWrapper>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-4xl font-bold text-slate-200">{kpis.totalVideos}</span>
-                <span className="text-xs text-slate-500 font-medium tracking-widest uppercase mt-1">Total</span>
-            </div>
-        </CardContent>
-    </Card>
-</div>
 
 
 function KpiCard({ title, value, subValue, suffix, icon: Icon, color, isHighlight, trend }: any) {

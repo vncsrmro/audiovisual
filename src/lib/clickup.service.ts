@@ -76,6 +76,9 @@ export class ClickUpService {
 
             // MODIFIED FILTER: Check Tag OR Assignee ID
             const filteredTasks = allTasks.filter(task => {
+                // Condition 0: Explicitly Exclude User 55083349
+                if (task.assignees.some(u => u.id === 55083349)) return false;
+
                 // Condition 1: Has "AUDIOVISUAL" Tag
                 const hasTag = task.tags.some(tag => tag.name.toUpperCase() === 'AUDIOVISUAL');
 

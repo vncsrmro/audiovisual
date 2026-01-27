@@ -14,7 +14,8 @@ import {
 } from 'recharts';
 import {
     Users, TrendingUp, Target, Award, Clock, Zap, BarChart3, GitCompare,
-    ArrowUp, ArrowDown, Calendar, RefreshCw, Timer, ClipboardList, Edit3, RotateCcw, CheckCircle, AlertCircle
+    ArrowUp, ArrowDown, Calendar, RefreshCw, Timer, ClipboardList, Edit3, RotateCcw, CheckCircle, AlertCircle,
+    Lightbulb, AlertTriangle, ThumbsUp, TrendingDown, Activity, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
@@ -73,7 +74,7 @@ function CustomTooltip({ active, payload, label, editorColors }: any) {
 export default function DashboardView({ initialData, lastUpdated }: DashboardViewProps) {
     const [isMounted, setIsMounted] = useState(false);
     const [timeRange, setTimeRange] = useState("all");
-    const [viewMode, setViewMode] = useState<'team' | 'compare' | 'details'>('team');
+    const [viewMode, setViewMode] = useState<'team' | 'compare' | 'details' | 'analysis'>('team');
     const [selectedEditors, setSelectedEditors] = useState<string[]>([]);
 
     useEffect(() => {
@@ -271,6 +272,172 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         ];
     }, [comparisonData, editorStats, teamMetrics]);
 
+    // --- ANÁLISE DE INSIGHTS E PONTOS DE MELHORIA ---
+    const analysisData = useMemo(() => {
+        if (editorStats.length === 0) return null;
+
+        // Calcular médias da equipe
+        const teamAvgEditing = editorStats.reduce((acc, e) => acc + e.avgEditingTime, 0) / editorStats.length;
+        const teamAvgRevision = editorStats.reduce((acc, e) => acc + e.avgRevisionTime, 0) / editorStats.length;
+        const teamAvgAlteration = editorStats.reduce((acc, e) => acc + e.avgAlterationTime, 0) / editorStats.length;
+        const teamAvgEfficiency = editorStats.reduce((acc, e) => acc + e.efficiency, 0) / editorStats.length;
+        const teamAvgLeadTime = editorStats.reduce((acc, e) => acc + e.avgTimeToComplete, 0) / editorStats.length;
+        const teamAvgVideos = editorStats.reduce((acc, e) => acc + e.videos, 0) / editorStats.length;
+        const teamAvgRevisionRate = editorStats.reduce((acc, e) => acc + e.revisionRate, 0) / editorStats.length;
+        const teamAvgAlterationRate = editorStats.reduce((acc, e) => acc + e.alterationRate, 0) / editorStats.length;
+
+        // Análise individual de cada editor
+        const editorAnalysis = editorStats.filter(e => e.videos > 0).map(editor => {
+            const strengths: string[] = [];
+            const improvements: string[] = [];
+            let score = 50; // Score base
+
+            // Análise de Volume
+            if (editor.videos > teamAvgVideos * 1.2) {
+                strengths.push('Alto volume de entregas');
+                score += 15;
+            } else if (editor.videos < teamAvgVideos * 0.7) {
+                improvements.push('Aumentar volume de entregas');
+                score -= 10;
+            }
+
+            // Análise de Tempo de Edição
+            if (editor.avgEditingTime > 0 && editor.avgEditingTime < teamAvgEditing * 0.8) {
+                strengths.push('Edição rápida');
+                score += 10;
+            } else if (editor.avgEditingTime > teamAvgEditing * 1.3) {
+                improvements.push('Reduzir tempo de edição');
+                score -= 10;
+            }
+
+            // Análise de Taxa de Revisão
+            if (editor.revisionRate < teamAvgRevisionRate * 0.7) {
+                strengths.push('Baixa taxa de revisão (qualidade)');
+                score += 15;
+            } else if (editor.revisionRate > teamAvgRevisionRate * 1.3) {
+                improvements.push('Reduzir retrabalhos (revisão)');
+                score -= 15;
+            }
+
+            // Análise de Taxa de Alteração
+            if (editor.alterationRate < teamAvgAlterationRate * 0.7) {
+                strengths.push('Poucas alterações necessárias');
+                score += 10;
+            } else if (editor.alterationRate > teamAvgAlterationRate * 1.3) {
+                improvements.push('Reduzir alterações pós-revisão');
+                score -= 10;
+            }
+
+            // Análise de Lead Time
+            if (editor.avgTimeToComplete > 0 && editor.avgTimeToComplete < teamAvgLeadTime * 0.8) {
+                strengths.push('Entregas rápidas');
+                score += 10;
+            } else if (editor.avgTimeToComplete > teamAvgLeadTime * 1.3) {
+                improvements.push('Acelerar ciclo de entrega');
+                score -= 10;
+            }
+
+            // Análise de Eficiência (h/vídeo)
+            if (editor.efficiency > 0 && editor.efficiency < teamAvgEfficiency * 0.8) {
+                strengths.push('Alta eficiência (menos horas por vídeo)');
+                score += 10;
+            } else if (editor.efficiency > teamAvgEfficiency * 1.3) {
+                improvements.push('Melhorar eficiência');
+                score -= 5;
+            }
+
+            // Garantir score entre 0 e 100
+            score = Math.max(0, Math.min(100, score));
+
+            return {
+                name: editor.name,
+                color: editor.color,
+                score,
+                strengths,
+                improvements,
+                metrics: {
+                    videos: editor.videos,
+                    avgEditingTime: editor.avgEditingTime,
+                    avgRevisionTime: editor.avgRevisionTime,
+                    avgAlterationTime: editor.avgAlterationTime,
+                    revisionRate: editor.revisionRate,
+                    alterationRate: editor.alterationRate,
+                    efficiency: editor.efficiency,
+                    avgTimeToComplete: editor.avgTimeToComplete
+                },
+                vsTeam: {
+                    videos: ((editor.videos - teamAvgVideos) / teamAvgVideos) * 100,
+                    editingTime: teamAvgEditing > 0 ? ((editor.avgEditingTime - teamAvgEditing) / teamAvgEditing) * 100 : 0,
+                    revisionRate: teamAvgRevisionRate > 0 ? ((editor.revisionRate - teamAvgRevisionRate) / teamAvgRevisionRate) * 100 : 0,
+                    alterationRate: teamAvgAlterationRate > 0 ? ((editor.alterationRate - teamAvgAlterationRate) / teamAvgAlterationRate) * 100 : 0,
+                    efficiency: teamAvgEfficiency > 0 ? ((editor.efficiency - teamAvgEfficiency) / teamAvgEfficiency) * 100 : 0
+                }
+            };
+        }).sort((a, b) => b.score - a.score);
+
+        // Insights da equipe
+        const teamInsights: { type: 'positive' | 'warning' | 'info'; message: string }[] = [];
+
+        // Taxa de revisão alta da equipe
+        if (teamAvgRevisionRate > 50) {
+            teamInsights.push({
+                type: 'warning',
+                message: `Taxa de revisão alta (${teamAvgRevisionRate.toFixed(0)}%) - considere melhorar briefings ou checkpoints intermediários`
+            });
+        }
+
+        // Taxa de alteração alta
+        if (teamAvgAlterationRate > 30) {
+            teamInsights.push({
+                type: 'warning',
+                message: `Taxa de alteração de ${teamAvgAlterationRate.toFixed(0)}% - revisar processo de aprovação`
+            });
+        }
+
+        // Editores com performance muito abaixo
+        const lowPerformers = editorAnalysis.filter(e => e.score < 40);
+        if (lowPerformers.length > 0) {
+            teamInsights.push({
+                type: 'warning',
+                message: `${lowPerformers.length} editor(es) precisam de atenção: ${lowPerformers.map(e => e.name).join(', ')}`
+            });
+        }
+
+        // Editores destaque
+        const topPerformers = editorAnalysis.filter(e => e.score >= 70);
+        if (topPerformers.length > 0) {
+            teamInsights.push({
+                type: 'positive',
+                message: `${topPerformers.length} editor(es) com excelente performance: ${topPerformers.map(e => e.name).join(', ')}`
+            });
+        }
+
+        // Distribuição de carga
+        const maxVideos = Math.max(...editorStats.map(e => e.videos));
+        const minVideos = Math.min(...editorStats.filter(e => e.videos > 0).map(e => e.videos));
+        if (maxVideos > minVideos * 3) {
+            teamInsights.push({
+                type: 'info',
+                message: 'Distribuição de tarefas desigual - considere balancear carga entre editores'
+            });
+        }
+
+        return {
+            editors: editorAnalysis,
+            teamInsights,
+            teamAverages: {
+                editingTime: teamAvgEditing,
+                revisionTime: teamAvgRevision,
+                alterationTime: teamAvgAlteration,
+                efficiency: teamAvgEfficiency,
+                leadTime: teamAvgLeadTime,
+                videos: teamAvgVideos,
+                revisionRate: teamAvgRevisionRate,
+                alterationRate: teamAvgAlterationRate
+            }
+        };
+    }, [editorStats]);
+
     // Toggle editor selection for comparison (até 6 editores)
     const toggleEditorSelection = (editorName: string) => {
         setSelectedEditors(prev => {
@@ -355,6 +522,20 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                             >
                                 <ClipboardList className="w-4 h-4 mr-2" />
                                 Detalhes
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('analysis')}
+                                className={cn(
+                                    "rounded-md px-4 transition-all",
+                                    viewMode === 'analysis'
+                                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                                        : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                                )}
+                            >
+                                <Lightbulb className="w-4 h-4 mr-2" />
+                                Análise
                             </Button>
                         </div>
 
@@ -1214,6 +1395,325 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                         <Bar dataKey="Tempo Edição" fill="#3b82f6" stackId="a" radius={[0, 0, 0, 0]} />
                                         <Bar dataKey="Tempo Revisão" fill="#f59e0b" stackId="a" radius={[0, 0, 0, 0]} />
                                         <Bar dataKey="Tempo Alteração" fill="#f97316" stackId="a" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </ChartWrapper>
+                        </CardContent>
+                    </Card>
+                </>
+            )}
+
+            {/* ANALYSIS VIEW */}
+            {viewMode === 'analysis' && analysisData && (
+                <>
+                    {/* Team Insights */}
+                    <div className="mb-6">
+                        <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-blue-500" />
+                            Insights da Equipe
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {analysisData.teamInsights.map((insight, index) => (
+                                <Card
+                                    key={index}
+                                    className={cn(
+                                        "backdrop-blur border",
+                                        insight.type === 'positive' && "bg-emerald-500/10 border-emerald-500/20",
+                                        insight.type === 'warning' && "bg-amber-500/10 border-amber-500/20",
+                                        insight.type === 'info' && "bg-blue-500/10 border-blue-500/20"
+                                    )}
+                                >
+                                    <CardContent className="p-4">
+                                        <div className="flex items-start gap-3">
+                                            {insight.type === 'positive' && <ThumbsUp className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />}
+                                            {insight.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />}
+                                            {insight.type === 'info' && <Lightbulb className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />}
+                                            <p className="text-sm text-slate-200">{insight.message}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {analysisData.teamInsights.length === 0 && (
+                                <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur col-span-full">
+                                    <CardContent className="p-6 text-center">
+                                        <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                        <p className="text-slate-300">Nenhum insight especial no momento. A equipe está com performance equilibrada!</p>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Team Averages Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <Card className="bg-gradient-to-br from-blue-500/20 to-blue-500/5 border-blue-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Média Edição</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-bold text-white">{formatHours(analysisData.teamAverages.editingTime)}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">por vídeo</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-amber-500/20 to-amber-500/5 border-amber-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Taxa Revisão</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-bold text-white">{analysisData.teamAverages.revisionRate.toFixed(0)}</span>
+                                    <span className="text-sm text-slate-400">%</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">média da equipe</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-orange-500/20 to-orange-500/5 border-orange-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Taxa Alteração</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-bold text-white">{analysisData.teamAverages.alterationRate.toFixed(0)}</span>
+                                    <span className="text-sm text-slate-400">%</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">média da equipe</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border-emerald-500/20 backdrop-blur">
+                            <CardContent className="p-4">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Lead Time</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-2xl font-bold text-white">{formatHours(analysisData.teamAverages.leadTime)}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">até conclusão</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Editor Performance Cards */}
+                    <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                        <Award className="w-5 h-5 text-amber-500" />
+                        Performance Individual
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+                        {analysisData.editors.map((editor, index) => (
+                            <Card
+                                key={editor.name}
+                                className={cn(
+                                    "bg-slate-900/50 border-slate-800/50 backdrop-blur overflow-hidden",
+                                    editor.score >= 70 && "ring-1 ring-emerald-500/30",
+                                    editor.score < 40 && "ring-1 ring-red-500/30"
+                                )}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className="w-4 h-12 rounded-full"
+                                                style={{ backgroundColor: editor.color }}
+                                            />
+                                            <div>
+                                                <CardTitle className="text-base font-medium text-white">{editor.name}</CardTitle>
+                                                <CardDescription className="text-slate-500">#{index + 1} no ranking</CardDescription>
+                                            </div>
+                                        </div>
+                                        <div className={cn(
+                                            "w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold",
+                                            editor.score >= 70 ? "bg-emerald-500/20 text-emerald-400" :
+                                            editor.score >= 50 ? "bg-amber-500/20 text-amber-400" :
+                                            "bg-red-500/20 text-red-400"
+                                        )}>
+                                            {editor.score}
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {/* Metrics Summary */}
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                        <div className="bg-slate-800/50 rounded-lg p-2">
+                                            <p className="text-slate-500 text-xs">Vídeos</p>
+                                            <p className="font-bold text-white">{editor.metrics.videos}</p>
+                                        </div>
+                                        <div className="bg-slate-800/50 rounded-lg p-2">
+                                            <p className="text-slate-500 text-xs">Eficiência</p>
+                                            <p className="font-bold text-white">{editor.metrics.efficiency.toFixed(1)}h/vídeo</p>
+                                        </div>
+                                        <div className="bg-slate-800/50 rounded-lg p-2">
+                                            <p className="text-slate-500 text-xs">Taxa Revisão</p>
+                                            <p className={cn(
+                                                "font-bold",
+                                                editor.metrics.revisionRate < 30 ? "text-emerald-400" :
+                                                editor.metrics.revisionRate < 60 ? "text-amber-400" : "text-red-400"
+                                            )}>{editor.metrics.revisionRate.toFixed(0)}%</p>
+                                        </div>
+                                        <div className="bg-slate-800/50 rounded-lg p-2">
+                                            <p className="text-slate-500 text-xs">Taxa Alteração</p>
+                                            <p className={cn(
+                                                "font-bold",
+                                                editor.metrics.alterationRate < 30 ? "text-emerald-400" :
+                                                editor.metrics.alterationRate < 60 ? "text-amber-400" : "text-red-400"
+                                            )}>{editor.metrics.alterationRate.toFixed(0)}%</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Comparison vs Team */}
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-slate-400 uppercase tracking-wider">vs Média da Equipe</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                    "border-0 text-xs",
+                                                    editor.vsTeam.videos > 0
+                                                        ? "bg-emerald-500/10 text-emerald-400"
+                                                        : "bg-red-500/10 text-red-400"
+                                                )}
+                                            >
+                                                Volume: {editor.vsTeam.videos > 0 ? '+' : ''}{editor.vsTeam.videos.toFixed(0)}%
+                                            </Badge>
+                                            <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                    "border-0 text-xs",
+                                                    editor.vsTeam.efficiency < 0
+                                                        ? "bg-emerald-500/10 text-emerald-400"
+                                                        : "bg-red-500/10 text-red-400"
+                                                )}
+                                            >
+                                                Eficiência: {editor.vsTeam.efficiency > 0 ? '+' : ''}{editor.vsTeam.efficiency.toFixed(0)}%
+                                            </Badge>
+                                            <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                    "border-0 text-xs",
+                                                    editor.vsTeam.revisionRate < 0
+                                                        ? "bg-emerald-500/10 text-emerald-400"
+                                                        : "bg-red-500/10 text-red-400"
+                                                )}
+                                            >
+                                                Revisão: {editor.vsTeam.revisionRate > 0 ? '+' : ''}{editor.vsTeam.revisionRate.toFixed(0)}%
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    <Separator className="bg-slate-800" />
+
+                                    {/* Strengths */}
+                                    {editor.strengths.length > 0 && (
+                                        <div>
+                                            <p className="text-xs text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                <ThumbsUp className="w-3 h-3" />
+                                                Pontos Fortes
+                                            </p>
+                                            <div className="space-y-1">
+                                                {editor.strengths.map((strength, i) => (
+                                                    <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
+                                                        <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                                                        {strength}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Improvements */}
+                                    {editor.improvements.length > 0 && (
+                                        <div>
+                                            <p className="text-xs text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                <TrendingUp className="w-3 h-3" />
+                                                Pontos de Melhoria
+                                            </p>
+                                            <div className="space-y-1">
+                                                {editor.improvements.map((improvement, i) => (
+                                                    <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
+                                                        <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                                                        {improvement}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* No issues */}
+                                    {editor.strengths.length === 0 && editor.improvements.length === 0 && (
+                                        <p className="text-sm text-slate-500 text-center py-2">
+                                            Performance dentro da média da equipe
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
+                    {/* Performance Ranking Chart */}
+                    <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base font-medium text-slate-200 flex items-center gap-2">
+                                <BarChart3 className="w-4 h-4 text-blue-500" />
+                                Ranking de Performance (Score)
+                            </CardTitle>
+                            <CardDescription className="text-slate-500">
+                                Score calculado com base em volume, eficiência, qualidade e velocidade
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[400px]">
+                            <ChartWrapper>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={analysisData.editors}
+                                        layout="vertical"
+                                        margin={{ top: 20, right: 30, left: 100, bottom: 20 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={true} vertical={false} />
+                                        <XAxis
+                                            type="number"
+                                            domain={[0, 100]}
+                                            stroke="#64748b"
+                                            tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            dataKey="name"
+                                            type="category"
+                                            stroke="#64748b"
+                                            tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            width={90}
+                                        />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl">
+                                                            <p className="font-semibold text-white mb-2">{data.name}</p>
+                                                            <p className="text-slate-300 text-sm">Score: <span className="font-bold text-white">{data.score}</span></p>
+                                                            <p className="text-slate-400 text-xs mt-2">
+                                                                {data.strengths.length} pontos fortes, {data.improvements.length} melhorias
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar
+                                            dataKey="score"
+                                            radius={[0, 6, 6, 0]}
+                                            maxBarSize={30}
+                                        >
+                                            {analysisData.editors.map((entry) => (
+                                                <Cell
+                                                    key={entry.name}
+                                                    fill={entry.score >= 70 ? '#10b981' : entry.score >= 50 ? '#f59e0b' : '#ef4444'}
+                                                />
+                                            ))}
+                                            <LabelList
+                                                dataKey="score"
+                                                position="right"
+                                                fill="#fff"
+                                                fontSize={12}
+                                                fontWeight="bold"
+                                            />
+                                        </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
                             </ChartWrapper>

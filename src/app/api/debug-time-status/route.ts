@@ -44,18 +44,18 @@ export async function GET(request: Request) {
 
             const rawData = await response.json();
 
-            // Parse the time in status data with status names
+            // Parse the time in status data - status_history is an ARRAY
             const parsedData: { [statusName: string]: { timeMs: number; timeHours: number } } = {};
+            const statusHistory = rawData.status_history || [];
 
-            if (rawData.current_status) {
-                for (const [statusId, data] of Object.entries(rawData.current_status)) {
-                    const statusName = statusMap[statusId] || statusId;
-                    const timeMs = (data as any).total_time?.by_minute * 60 * 1000 || (data as any).time || 0;
-                    parsedData[statusName] = {
-                        timeMs,
-                        timeHours: parseFloat((timeMs / 3600000).toFixed(2))
-                    };
-                }
+            for (const statusItem of statusHistory) {
+                const statusName = statusItem.status || 'unknown';
+                const byMinute = statusItem.total_time?.by_minute || 0;
+                const timeMs = byMinute * 60 * 1000;
+                parsedData[statusName] = {
+                    timeMs,
+                    timeHours: parseFloat((timeMs / 3600000).toFixed(2))
+                };
             }
 
             return NextResponse.json({
@@ -91,18 +91,18 @@ export async function GET(request: Request) {
 
                 const data = await response.json();
 
-                // Parse with status names
+                // Parse status_history array
                 const parsedData: { [statusName: string]: { timeMs: number; timeHours: number } } = {};
+                const statusHistory = data.status_history || [];
 
-                if (data.current_status) {
-                    for (const [statusId, statusData] of Object.entries(data.current_status)) {
-                        const statusName = statusMap[statusId] || statusId;
-                        const timeMs = (statusData as any).total_time?.by_minute * 60 * 1000 || (statusData as any).time || 0;
-                        parsedData[statusName] = {
-                            timeMs,
-                            timeHours: parseFloat((timeMs / 3600000).toFixed(2))
-                        };
-                    }
+                for (const statusItem of statusHistory) {
+                    const statusName = statusItem.status || 'unknown';
+                    const byMinute = statusItem.total_time?.by_minute || 0;
+                    const timeMs = byMinute * 60 * 1000;
+                    parsedData[statusName] = {
+                        timeMs,
+                        timeHours: parseFloat((timeMs / 3600000).toFixed(2))
+                    };
                 }
 
                 return {

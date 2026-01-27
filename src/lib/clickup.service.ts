@@ -53,8 +53,15 @@ export class ClickUpService {
                 console.log(`[ClickUp] Page ${page} fetched. Count: ${tasks.length}`);
 
                 if (tasks.length > 0) {
-                    // DEBUG: Log tags of the first task to verify format
-                    console.log(`[ClickUp] Debug - First Task Tags:`, JSON.stringify(tasks[0].tags));
+                    // DEBUG: Log key fields of the first task to find where "Hours" are stored
+                    const t = tasks[0];
+                    console.log(`[ClickUp] Debug Task [${t.name}]:`, JSON.stringify({
+                        status: t.status,
+                        time_spent: t.time_spent,
+                        date_created: t.date_created,
+                        date_closed: t.date_closed,
+                        custom_fields: t.custom_fields.map(f => ({ name: f.name, value: f.value, type: f.type }))
+                    }, null, 2));
                 }
 
                 if (tasks.length === 0) {

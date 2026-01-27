@@ -113,3 +113,41 @@ export interface DashboardKPIs {
   tasksByStatus: { [key: string]: number };
   tasksByType: { [key: string]: number };
 }
+
+// Task Status History Types (for time tracking via webhooks)
+export interface TaskStatusEvent {
+  id: number;
+  taskId: string;
+  taskName: string | null;
+  previousStatus: string | null;
+  newStatus: string;
+  editorId: string | null;
+  editorName: string | null;
+  eventTimestamp: number; // Unix timestamp in ms
+  createdAt: Date;
+}
+
+export interface TaskTimeInterval {
+  taskId: string;
+  status: string;
+  startTimestamp: number;
+  endTimestamp: number | null;
+  durationMs: number;
+}
+
+export interface TaskWorkingTime {
+  taskId: string;
+  totalWorkingTimeMs: number;
+  intervals: TaskTimeInterval[];
+}
+
+// Status categories for time tracking
+export const WORKING_STATUSES = [
+  'EM ANDAMENTO', 'IN PROGRESS', 'DOING', 'RUNNING', 'FAZENDO',
+  'REVISÃO', 'REVISAO', 'REVIEW', 'QA', 'APROVAÇÃO'
+];
+
+export const END_STATUSES = [
+  'CONCLUÍDO', 'CONCLUIDO', 'COMPLETED', 'DONE', 'CLOSED',
+  'FINALIZADO', 'ENTREGUE'
+];

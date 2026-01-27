@@ -5,8 +5,10 @@ export class DataService {
     /**
      * Normalizes raw ClickUp tasks into a clean format.
      * Handles time conversions and field extraction.
+     * @param tasks - Raw tasks from ClickUp API
+     * @param webhookTimeMap - Optional map of taskId -> working time in ms (from webhook history)
      */
-    normalizeTasks(tasks: ClickUpTask[]): NormalizedTask[] {
+    normalizeTasks(tasks: ClickUpTask[], webhookTimeMap?: Map<string, number>): NormalizedTask[] {
         return tasks.map(task => {
             // 1. Extract Lead Time (Closed - Created)
             const created = parseInt(task.date_created);
@@ -16,23 +18,40 @@ export class DataService {
             const assignee = task.assignees.length > 0 ? task.assignees[0] : null;
 
             // 3. Extract Time Tracked
-            // Priority: time_spent (native) -> Custom Field "Horas" -> Custom Field "Tempo"
-            let timeTrackedMs = task.time_spent || 0;
+            // Priority: Webhook history -> time_spent (native) -> Custom Field "Horas" -> Fallback
+            let timeTrackedMs = 0;
 
+            // First priority: Time calculated from webhook status history
+            if (webhookTimeMap && webhookTimeMap.has(task.id)) {
+                timeTrackedMs = webhookTimeMap.get(task.id)!;
+                if (timeTrackedMs > 0) {
+                    console.log(`[DataService] Task ${task.id}: Using webhook time = ${(timeTrackedMs / 3600000).toFixed(2)}h`);
+                }
+            }
+
+            // Second priority: Native ClickUp time_spent
+            if (timeTrackedMs === 0 && task.time_spent) {
+                timeTrackedMs = task.time_spent;
+            }
+
+            // Third priority: Custom fields
             if (timeTrackedMs === 0) {
-                // Fallback: Look for custom fields that might contain time
                 const hoursField = task.custom_fields.find(f =>
                     ['horas', 'tempo', 'duração', 'time', 'duration', 'hours'].some(key => f.name.toLowerCase().includes(key))
                 );
                 if (hoursField?.value) {
-                    // Heuristic: If value is small (< 1000), assume it's Hours, not ms.
-                    // If it's a string, try parsing.
                     const val = parseFloat(hoursField.value);
                     if (!isNaN(val)) {
                         if (val > 10000) timeTrackedMs = val; // Likely ms
                         else timeTrackedMs = val * 60 * 60 * 1000; // Assume hours, convert to ms
                     }
                 }
+            }
+
+            // Final fallback: Use lead time (date_closed - date_created) if task is completed
+            if (timeTrackedMs === 0 && closed) {
+                timeTrackedMs = closed - created;
+                console.log(`[DataService] Task ${task.id}: Using lead time fallback = ${(timeTrackedMs / 3600000).toFixed(2)}h`);
             }
 
             const timeTrackedHours = parseFloat((timeTrackedMs / (1000 * 60 * 60)).toFixed(2));

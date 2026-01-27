@@ -9,45 +9,59 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from "@/components/ui/separator";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-    PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-    LineChart, Line, Legend, ComposedChart, Area
+    RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+    Legend, LabelList
 } from 'recharts';
 import {
     Users, TrendingUp, Target, Award, Clock, Zap, BarChart3, GitCompare,
-    ChevronRight, ArrowUp, ArrowDown, Minus, Calendar, RefreshCw
+    ArrowUp, ArrowDown, Calendar, RefreshCw, Timer
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
 
-// --- COLORS (Power BI inspired) ---
-const COLORS = {
-    primary: '#3b82f6',
-    secondary: '#8b5cf6',
-    success: '#10b981',
-    warning: '#f59e0b',
-    danger: '#ef4444',
-    info: '#06b6d4',
-    chart: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#f97316']
-};
+// --- CORES FIXAS POR EDITOR (baseado no índice alfabético do nome) ---
+const EDITOR_COLORS = [
+    '#3b82f6', // blue
+    '#8b5cf6', // violet
+    '#10b981', // emerald
+    '#f59e0b', // amber
+    '#ec4899', // pink
+    '#06b6d4', // cyan
+    '#84cc16', // lime
+    '#f97316', // orange
+    '#6366f1', // indigo
+    '#14b8a6', // teal
+    '#a855f7', // purple
+    '#eab308', // yellow
+];
+
+// Função para obter cor fixa baseada no nome do editor
+function getEditorColor(editorName: string, editorList: string[]): string {
+    const sortedEditors = [...editorList].sort();
+    const index = sortedEditors.indexOf(editorName);
+    return EDITOR_COLORS[index % EDITOR_COLORS.length];
+}
 
 interface DashboardViewProps {
     initialData: DashboardKPIs;
     lastUpdated: number;
 }
 
-// --- CUSTOM TOOLTIP (Power BI Style) ---
-function CustomTooltip({ active, payload, label }: any) {
+// --- CUSTOM TOOLTIP ---
+function CustomTooltip({ active, payload, label, editorColors }: any) {
     if (active && payload && payload.length) {
         return (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-lg shadow-xl">
-                <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2 text-sm">{label}</p>
+            <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl">
+                <p className="font-semibold text-white mb-3 pb-2 border-b border-slate-700">{label}</p>
                 {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between gap-4 text-sm">
+                    <div key={index} className="flex items-center justify-between gap-6 py-1">
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: entry.color }} />
-                            <span className="text-slate-600 dark:text-slate-400">{entry.name}</span>
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+                            <span className="text-slate-300 text-sm">{entry.name}</span>
                         </div>
-                        <span className="font-bold text-slate-900 dark:text-white">{typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}</span>
+                        <span className="font-bold text-white text-sm">
+                            {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
+                        </span>
                     </div>
                 ))}
             </div>
@@ -65,6 +79,21 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // Lista de todos os editores para cores consistentes
+    const allEditorNames = useMemo(() =>
+        initialData.editors.map(e => e.editorName),
+        [initialData.editors]
+    );
+
+    // Mapa de cores por editor
+    const editorColorMap = useMemo(() => {
+        const map = new Map<string, string>();
+        allEditorNames.forEach(name => {
+            map.set(name, getEditorColor(name, allEditorNames));
+        });
+        return map;
+    }, [allEditorNames]);
 
     const ChartWrapper = ({ children }: { children: React.ReactNode }) => {
         if (!isMounted) return <div className="h-full w-full flex items-center justify-center text-slate-400">Carregando...</div>;
@@ -97,7 +126,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         const totalHours = completedVideos.reduce((acc, v) => acc + v.timeTrackedHours, 0);
         const avgEfficiency = totalVideos > 0 ? totalHours / totalVideos : 0;
 
-        // Lead time médio
+        // Lead time médio (tempo até conclusão)
         const videosWithLeadTime = completedVideos.filter(v => v.dateClosed && v.dateCreated);
         const avgLeadTime = videosWithLeadTime.length > 0
             ? videosWithLeadTime.reduce((acc, v) => acc + (v.dateClosed! - v.dateCreated) / (1000 * 60 * 60), 0) / videosWithLeadTime.length
@@ -114,7 +143,9 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
             hours: number;
             efficiency: number;
             leadTime: number;
+            avgTimeToComplete: number;
             inProgress: number;
+            color: string;
         }>();
 
         filteredVideos.forEach(video => {
@@ -125,7 +156,9 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     hours: 0,
                     efficiency: 0,
                     leadTime: 0,
-                    inProgress: 0
+                    avgTimeToComplete: 0,
+                    inProgress: 0,
+                    color: editorColorMap.get(video.editorName) || '#6b7280'
                 });
             }
 
@@ -135,9 +168,10 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                 stats.videos += 1;
                 stats.hours += video.timeTrackedHours;
 
+                // Tempo até conclusão (lead time)
                 if (video.dateClosed && video.dateCreated) {
-                    const lt = (video.dateClosed - video.dateCreated) / (1000 * 60 * 60);
-                    stats.leadTime += lt;
+                    const timeToComplete = (video.dateClosed - video.dateCreated) / (1000 * 60 * 60);
+                    stats.leadTime += timeToComplete;
                 }
             } else if (['IN PROGRESS', 'DOING', 'REVIEW'].includes(video.status)) {
                 stats.inProgress += 1;
@@ -148,9 +182,9 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         return Array.from(statsMap.values()).map(s => ({
             ...s,
             efficiency: s.videos > 0 ? s.hours / s.videos : 0,
-            leadTime: s.videos > 0 ? s.leadTime / s.videos : 0
+            avgTimeToComplete: s.videos > 0 ? s.leadTime / s.videos : 0
         })).sort((a, b) => b.videos - a.videos);
-    }, [filteredVideos]);
+    }, [filteredVideos, editorColorMap]);
 
     // --- COMPARISON DATA ---
     const comparisonData = useMemo(() => {
@@ -172,7 +206,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
 
         const maxVideos = Math.max(...editorStats.map(e => e.videos), 1);
         const maxEfficiency = Math.max(...editorStats.map(e => e.efficiency), 1);
-        const maxLeadTime = Math.max(...editorStats.map(e => e.leadTime), 1);
+        const maxLeadTime = Math.max(...editorStats.map(e => e.avgTimeToComplete), 1);
 
         return [
             {
@@ -182,18 +216,18 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
             },
             {
                 metric: 'Eficiência',
-                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, (1 - e.efficiency / maxEfficiency) * 100])),
-                'Média Equipe': (1 - comparisonData.teamAvg.efficiency / maxEfficiency) * 100
+                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, e.efficiency > 0 ? (1 - e.efficiency / maxEfficiency) * 100 : 0])),
+                'Média Equipe': comparisonData.teamAvg.efficiency > 0 ? (1 - comparisonData.teamAvg.efficiency / maxEfficiency) * 100 : 0
             },
             {
                 metric: 'Agilidade',
-                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, (1 - e.leadTime / maxLeadTime) * 100])),
-                'Média Equipe': (1 - comparisonData.teamAvg.leadTime / maxLeadTime) * 100
+                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, e.avgTimeToComplete > 0 ? (1 - e.avgTimeToComplete / maxLeadTime) * 100 : 0])),
+                'Média Equipe': comparisonData.teamAvg.leadTime > 0 ? (1 - comparisonData.teamAvg.leadTime / maxLeadTime) * 100 : 0
             },
             {
-                metric: 'Produtividade',
-                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, e.videos > 0 ? Math.min((e.videos / e.hours) * 50, 100) : 0])),
-                'Média Equipe': teamMetrics.totalVideos > 0 ? Math.min((teamMetrics.totalVideos / teamMetrics.totalHours) * 50, 100) : 0
+                metric: 'Consistência',
+                ...Object.fromEntries(comparisonData.editors.map(e => [e.name, e.videos > 0 ? Math.min((e.videos / (e.hours || 1)) * 30, 100) : 0])),
+                'Média Equipe': teamMetrics.totalVideos > 0 ? Math.min((teamMetrics.totalVideos / (teamMetrics.totalHours || 1)) * 30, 100) : 0
             }
         ];
     }, [comparisonData, editorStats, teamMetrics]);
@@ -209,6 +243,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
             }
             return [...prev, editorName];
         });
+    };
+
+    // Formatar horas para exibição
+    const formatHours = (hours: number) => {
+        if (hours < 24) return `${hours.toFixed(0)}h`;
+        const days = Math.floor(hours / 24);
+        const remainingHours = hours % 24;
+        return `${days}d ${remainingHours.toFixed(0)}h`;
     };
 
     // --- RENDER ---
@@ -309,12 +351,11 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                             subtitle="média da equipe"
                         />
                         <MetricCard
-                            title="Lead Time"
-                            value={teamMetrics.avgLeadTime.toFixed(0)}
-                            suffix="h"
-                            icon={TrendingUp}
+                            title="Tempo Médio"
+                            value={formatHours(teamMetrics.avgLeadTime)}
+                            icon={Timer}
                             color="amber"
-                            subtitle="tempo médio"
+                            subtitle="até conclusão"
                         />
                         <MetricCard
                             title="Editores"
@@ -326,99 +367,236 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     </div>
 
                     {/* MAIN CONTENT */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
 
-                        {/* RANKING DOS EDITORES */}
-                        <Card className="lg:col-span-1 bg-slate-900/50 border-slate-800/50 backdrop-blur">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-base font-medium text-slate-200 flex items-center gap-2">
-                                    <Award className="w-4 h-4 text-amber-500" />
-                                    Ranking de Entregas
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                {editorStats.slice(0, 8).map((editor, index) => (
-                                    <div
-                                        key={editor.name}
-                                        className={cn(
-                                            "flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer",
-                                            "hover:bg-slate-800/50",
-                                            index === 0 && "bg-gradient-to-r from-amber-500/10 to-transparent border-l-2 border-amber-500"
-                                        )}
-                                        onClick={() => toggleEditorSelection(editor.name)}
-                                    >
-                                        <div className={cn(
-                                            "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                                            index === 0 ? "bg-amber-500 text-black" :
-                                                index === 1 ? "bg-slate-400 text-black" :
-                                                    index === 2 ? "bg-amber-700 text-white" :
-                                                        "bg-slate-700 text-slate-300"
-                                        )}>
-                                            {index + 1}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-200 truncate">{editor.name}</p>
-                                            <p className="text-xs text-slate-500">{editor.efficiency.toFixed(1)}h por vídeo</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-lg text-white">{editor.videos}</p>
-                                            <p className="text-xs text-slate-500">vídeos</p>
-                                        </div>
-                                        {selectedEditors.includes(editor.name) && (
-                                            <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                        )}
-                                    </div>
-                                ))}
-                            </CardContent>
-                        </Card>
-
-                        {/* GRÁFICO DE VOLUME */}
-                        <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800/50 backdrop-blur">
+                        {/* GRÁFICO DE BARRAS VERTICAL */}
+                        <Card className="xl:col-span-8 bg-slate-900/50 border-slate-800/50 backdrop-blur">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base font-medium text-slate-200 flex items-center gap-2">
                                     <BarChart3 className="w-4 h-4 text-blue-500" />
                                     Volume de Entregas por Editor
                                 </CardTitle>
                                 <CardDescription className="text-slate-500">
-                                    Comparação de produtividade individual
+                                    Cada editor possui uma cor fixa para identificação
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="h-[350px]">
+                            <CardContent className="h-[400px]">
                                 <ChartWrapper>
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <ComposedChart data={editorStats} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={true} vertical={false} />
-                                            <XAxis type="number" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                                            <YAxis
+                                        <BarChart data={editorStats} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                            <XAxis
                                                 dataKey="name"
-                                                type="category"
-                                                width={100}
                                                 stroke="#64748b"
                                                 tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                angle={-45}
+                                                textAnchor="end"
+                                                height={60}
+                                                interval={0}
                                             />
-                                            <Tooltip content={<CustomTooltip />} />
-                                            <Bar dataKey="videos" name="Concluídos" fill={COLORS.primary} radius={[0, 4, 4, 0]} barSize={20} />
-                                            <Bar dataKey="inProgress" name="Em Andamento" fill={COLORS.warning} radius={[0, 4, 4, 0]} barSize={20} />
-                                        </ComposedChart>
+                                            <YAxis
+                                                stroke="#64748b"
+                                                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                                            <Bar dataKey="videos" name="Concluídos" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                                                {editorStats.map((entry) => (
+                                                    <Cell key={entry.name} fill={entry.color} />
+                                                ))}
+                                                <LabelList dataKey="videos" position="top" fill="#fff" fontSize={12} fontWeight="bold" />
+                                            </Bar>
+                                        </BarChart>
                                     </ResponsiveContainer>
                                 </ChartWrapper>
                             </CardContent>
                         </Card>
+
+                        {/* RANKING DOS EDITORES */}
+                        <Card className="xl:col-span-4 bg-slate-900/50 border-slate-800/50 backdrop-blur">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-medium text-slate-200 flex items-center gap-2">
+                                    <Award className="w-4 h-4 text-amber-500" />
+                                    Ranking de Performance
+                                </CardTitle>
+                                <CardDescription className="text-slate-500">
+                                    Clique para selecionar e comparar
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-1 max-h-[360px] overflow-y-auto">
+                                {editorStats.map((editor, index) => (
+                                    <div
+                                        key={editor.name}
+                                        className={cn(
+                                            "flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer group",
+                                            "hover:bg-slate-800/70",
+                                            selectedEditors.includes(editor.name) && "bg-slate-800/50 ring-1 ring-blue-500/50"
+                                        )}
+                                        onClick={() => toggleEditorSelection(editor.name)}
+                                    >
+                                        {/* Posição */}
+                                        <div className={cn(
+                                            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
+                                            index === 0 ? "bg-amber-500 text-black" :
+                                                index === 1 ? "bg-slate-300 text-black" :
+                                                    index === 2 ? "bg-amber-700 text-white" :
+                                                        "bg-slate-700 text-slate-400"
+                                        )}>
+                                            {index + 1}
+                                        </div>
+
+                                        {/* Cor do editor */}
+                                        <div
+                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: editor.color }}
+                                        />
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-200 truncate text-sm">{editor.name}</p>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <span>{editor.efficiency.toFixed(1)}h/vídeo</span>
+                                                <span>•</span>
+                                                <span>{formatHours(editor.avgTimeToComplete)} até concluir</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Volume */}
+                                        <div className="text-right flex-shrink-0">
+                                            <p className="font-bold text-lg text-white">{editor.videos}</p>
+                                            <p className="text-xs text-slate-500">vídeos</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
                     </div>
 
-                    {/* PERFORMANCE CARDS */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {editorStats.slice(0, 8).map((editor, index) => (
-                            <EditorCard
-                                key={editor.name}
-                                editor={editor}
-                                teamAvg={teamMetrics}
-                                rank={index + 1}
-                                onClick={() => toggleEditorSelection(editor.name)}
-                                isSelected={selectedEditors.includes(editor.name)}
-                            />
-                        ))}
-                    </div>
+                    {/* TABELA DETALHADA */}
+                    <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur overflow-hidden">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base font-medium text-slate-200 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                Métricas Individuais vs Equipe
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-800/50">
+                                        <tr>
+                                            <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Editor</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Entregas</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Horas</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Eficiência</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Tempo até Conclusão</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">Em Andamento</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">vs Equipe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/50">
+                                        {editorStats.map((editor, index) => {
+                                            const efficiencyDiff = teamMetrics.avgEfficiency > 0
+                                                ? ((editor.efficiency - teamMetrics.avgEfficiency) / teamMetrics.avgEfficiency) * 100
+                                                : 0;
+                                            const isAboveAvg = editor.efficiency < teamMetrics.avgEfficiency;
+
+                                            return (
+                                                <tr
+                                                    key={editor.name}
+                                                    className={cn(
+                                                        "hover:bg-slate-800/30 transition-colors",
+                                                        selectedEditors.includes(editor.name) && "bg-blue-500/5"
+                                                    )}
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div
+                                                                className="w-3 h-8 rounded-full"
+                                                                style={{ backgroundColor: editor.color }}
+                                                            />
+                                                            <div>
+                                                                <p className="font-medium text-white">{editor.name}</p>
+                                                                <p className="text-xs text-slate-500">#{index + 1} no ranking</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="text-center px-4 py-3">
+                                                        <span className="font-bold text-white text-lg">{editor.videos}</span>
+                                                    </td>
+                                                    <td className="text-center px-4 py-3 text-slate-300">
+                                                        {editor.hours.toFixed(0)}h
+                                                    </td>
+                                                    <td className="text-center px-4 py-3">
+                                                        <span className="font-medium text-white">{editor.efficiency.toFixed(1)}h</span>
+                                                        <span className="text-slate-500 text-xs">/vídeo</span>
+                                                    </td>
+                                                    <td className="text-center px-4 py-3 text-slate-300">
+                                                        {formatHours(editor.avgTimeToComplete)}
+                                                    </td>
+                                                    <td className="text-center px-4 py-3">
+                                                        {editor.inProgress > 0 ? (
+                                                            <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                                                {editor.inProgress}
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="text-center px-4 py-3">
+                                                        {editor.videos > 0 && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={cn(
+                                                                    "border-0",
+                                                                    isAboveAvg
+                                                                        ? "bg-emerald-500/10 text-emerald-400"
+                                                                        : "bg-red-500/10 text-red-400"
+                                                                )}
+                                                            >
+                                                                {isAboveAvg ? (
+                                                                    <ArrowUp className="w-3 h-3 mr-1" />
+                                                                ) : (
+                                                                    <ArrowDown className="w-3 h-3 mr-1" />
+                                                                )}
+                                                                {Math.abs(efficiencyDiff).toFixed(0)}%
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {/* Linha da média da equipe */}
+                                        <tr className="bg-slate-800/30 font-medium">
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-8 rounded-full bg-gradient-to-b from-blue-500 to-violet-500" />
+                                                    <p className="text-slate-300">Média da Equipe</p>
+                                                </div>
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">
+                                                {(teamMetrics.totalVideos / teamMetrics.activeEditors).toFixed(1)}
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">
+                                                {(teamMetrics.totalHours / teamMetrics.activeEditors).toFixed(0)}h
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">
+                                                {teamMetrics.avgEfficiency.toFixed(1)}h/vídeo
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">
+                                                {formatHours(teamMetrics.avgLeadTime)}
+                                            </td>
+                                            <td className="text-center px-4 py-3 text-slate-300">-</td>
+                                            <td className="text-center px-4 py-3 text-slate-400">Base</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </>
             )}
 
@@ -437,19 +615,27 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 {editorStats.map(editor => (
                                     <Button
                                         key={editor.name}
-                                        variant={selectedEditors.includes(editor.name) ? "default" : "outline"}
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => toggleEditorSelection(editor.name)}
                                         className={cn(
-                                            "transition-all",
+                                            "transition-all gap-2",
                                             selectedEditors.includes(editor.name)
-                                                ? "bg-blue-600 hover:bg-blue-700 border-blue-600"
+                                                ? "border-2 text-white"
                                                 : "bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800"
                                         )}
+                                        style={{
+                                            borderColor: selectedEditors.includes(editor.name) ? editor.color : undefined,
+                                            backgroundColor: selectedEditors.includes(editor.name) ? `${editor.color}20` : undefined
+                                        }}
                                     >
+                                        <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: editor.color }}
+                                        />
                                         {editor.name}
                                         {selectedEditors.includes(editor.name) && (
-                                            <span className="ml-2 w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
+                                            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                                                 {selectedEditors.indexOf(editor.name) + 1}
                                             </span>
                                         )}
@@ -468,7 +654,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                         Análise Comparativa
                                     </CardTitle>
                                     <CardDescription className="text-slate-500">
-                                        Performance relativa em múltiplas dimensões
+                                        Performance relativa em múltiplas dimensões (quanto maior, melhor)
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="h-[400px]">
@@ -478,13 +664,13 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                 <PolarGrid stroke="#334155" />
                                                 <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 12 }} />
                                                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 10 }} />
-                                                {comparisonData.editors.map((editor, index) => (
+                                                {comparisonData.editors.map((editor) => (
                                                     <Radar
                                                         key={editor.name}
                                                         name={editor.name}
                                                         dataKey={editor.name}
-                                                        stroke={COLORS.chart[index]}
-                                                        fill={COLORS.chart[index]}
+                                                        stroke={editor.color}
+                                                        fill={editor.color}
                                                         fillOpacity={0.2}
                                                         strokeWidth={2}
                                                     />
@@ -516,11 +702,12 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                 <CardContent>
                                     <div className="space-y-4">
                                         {/* Headers */}
-                                        <div className="grid grid-cols-4 gap-4 pb-2 border-b border-slate-700">
+                                        <div className={cn("grid gap-4 pb-3 border-b border-slate-700", `grid-cols-${comparisonData.editors.length + 2}`)}>
                                             <div className="text-sm text-slate-500">Métrica</div>
-                                            {comparisonData.editors.map((editor, i) => (
-                                                <div key={editor.name} className="text-sm font-medium text-center" style={{ color: COLORS.chart[i] }}>
-                                                    {editor.name}
+                                            {comparisonData.editors.map((editor) => (
+                                                <div key={editor.name} className="text-sm font-medium text-center flex items-center justify-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: editor.color }} />
+                                                    <span style={{ color: editor.color }}>{editor.name}</span>
                                                 </div>
                                             ))}
                                             <div className="text-sm text-slate-500 text-center">Equipe</div>
@@ -532,12 +719,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                             values={comparisonData.editors.map(e => e.videos)}
                                             teamValue={comparisonData.teamAvg.videos}
                                             format="number"
+                                            colors={comparisonData.editors.map(e => e.color)}
                                         />
                                         <ComparisonRow
                                             label="Horas Totais"
                                             values={comparisonData.editors.map(e => e.hours)}
                                             teamValue={teamMetrics.totalHours / teamMetrics.activeEditors}
                                             format="hours"
+                                            colors={comparisonData.editors.map(e => e.color)}
                                         />
                                         <ComparisonRow
                                             label="Eficiência"
@@ -545,19 +734,22 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                             teamValue={comparisonData.teamAvg.efficiency}
                                             format="efficiency"
                                             lowerIsBetter
+                                            colors={comparisonData.editors.map(e => e.color)}
                                         />
                                         <ComparisonRow
-                                            label="Lead Time"
-                                            values={comparisonData.editors.map(e => e.leadTime)}
+                                            label="Tempo até Conclusão"
+                                            values={comparisonData.editors.map(e => e.avgTimeToComplete)}
                                             teamValue={comparisonData.teamAvg.leadTime}
                                             format="hours"
                                             lowerIsBetter
+                                            colors={comparisonData.editors.map(e => e.color)}
                                         />
                                         <ComparisonRow
                                             label="Em Andamento"
                                             values={comparisonData.editors.map(e => e.inProgress)}
                                             teamValue={filteredVideos.filter(v => ['IN PROGRESS', 'DOING', 'REVIEW'].includes(v.status)).length / teamMetrics.activeEditors}
                                             format="number"
+                                            colors={comparisonData.editors.map(e => e.color)}
                                         />
                                     </div>
                                 </CardContent>
@@ -565,14 +757,14 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
 
                             {/* Individual Cards */}
                             <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {comparisonData.editors.map((editor, index) => (
+                                {comparisonData.editors.map((editor) => (
                                     <Card key={editor.name} className="bg-slate-900/50 border-slate-800/50 backdrop-blur overflow-hidden">
-                                        <div className="h-1" style={{ backgroundColor: COLORS.chart[index] }} />
+                                        <div className="h-1" style={{ backgroundColor: editor.color }} />
                                         <CardContent className="pt-4">
                                             <div className="flex items-center gap-3 mb-4">
                                                 <div
                                                     className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white"
-                                                    style={{ backgroundColor: COLORS.chart[index] }}
+                                                    style={{ backgroundColor: editor.color }}
                                                 >
                                                     {editor.name.charAt(0)}
                                                 </div>
@@ -587,6 +779,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                     label="Entregas"
                                                     value={editor.videos}
                                                     comparison={comparisonData.teamAvg.videos}
+                                                    color={editor.color}
                                                 />
                                                 <StatRow
                                                     label="Eficiência"
@@ -594,13 +787,15 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                     comparison={comparisonData.teamAvg.efficiency}
                                                     suffix="h/vídeo"
                                                     lowerIsBetter
+                                                    color={editor.color}
                                                 />
                                                 <StatRow
-                                                    label="Lead Time"
-                                                    value={editor.leadTime}
+                                                    label="Tempo até Conclusão"
+                                                    value={editor.avgTimeToComplete}
                                                     comparison={comparisonData.teamAvg.leadTime}
                                                     suffix="h"
                                                     lowerIsBetter
+                                                    color={editor.color}
                                                 />
                                             </div>
                                         </CardContent>
@@ -632,11 +827,19 @@ function MetricCard({ title, value, suffix, icon: Icon, color, subtitle }: {
     subtitle: string;
 }) {
     const colorMap = {
-        blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/20 text-blue-500',
-        violet: 'from-violet-500/20 to-violet-500/5 border-violet-500/20 text-violet-500',
-        emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/20 text-emerald-500',
-        amber: 'from-amber-500/20 to-amber-500/5 border-amber-500/20 text-amber-500',
-        cyan: 'from-cyan-500/20 to-cyan-500/5 border-cyan-500/20 text-cyan-500',
+        blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/20',
+        violet: 'from-violet-500/20 to-violet-500/5 border-violet-500/20',
+        emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/20',
+        amber: 'from-amber-500/20 to-amber-500/5 border-amber-500/20',
+        cyan: 'from-cyan-500/20 to-cyan-500/5 border-cyan-500/20',
+    };
+
+    const iconColorMap = {
+        blue: 'text-blue-500',
+        violet: 'text-violet-500',
+        emerald: 'text-emerald-500',
+        amber: 'text-amber-500',
+        cyan: 'text-cyan-500',
     };
 
     return (
@@ -651,87 +854,20 @@ function MetricCard({ title, value, suffix, icon: Icon, color, subtitle }: {
                         </div>
                         <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
                     </div>
-                    <Icon className={cn("w-8 h-8 opacity-50", `text-${color}-500`)} />
+                    <Icon className={cn("w-8 h-8 opacity-50", iconColorMap[color])} />
                 </div>
             </CardContent>
         </Card>
     );
 }
 
-function EditorCard({ editor, teamAvg, rank, onClick, isSelected }: {
-    editor: { name: string; videos: number; hours: number; efficiency: number; leadTime: number; inProgress: number };
-    teamAvg: { avgEfficiency: number; avgLeadTime: number };
-    rank: number;
-    onClick: () => void;
-    isSelected: boolean;
-}) {
-    const efficiencyDiff = ((editor.efficiency - teamAvg.avgEfficiency) / teamAvg.avgEfficiency) * 100;
-    const isEfficient = editor.efficiency < teamAvg.avgEfficiency;
-
-    return (
-        <Card
-            className={cn(
-                "bg-slate-900/50 border-slate-800/50 backdrop-blur cursor-pointer transition-all hover:border-slate-700",
-                isSelected && "ring-2 ring-blue-500 border-blue-500/50"
-            )}
-            onClick={onClick}
-        >
-            <CardContent className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                        rank <= 3 ? "bg-gradient-to-br from-amber-400 to-amber-600 text-black" : "bg-slate-700 text-slate-300"
-                    )}>
-                        {rank}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white truncate">{editor.name}</p>
-                    </div>
-                    {isSelected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <p className="text-xs text-slate-500">Entregas</p>
-                        <p className="text-lg font-bold text-white">{editor.videos}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs text-slate-500">Em Andamento</p>
-                        <p className="text-lg font-bold text-amber-400">{editor.inProgress}</p>
-                    </div>
-                </div>
-
-                <Separator className="my-3 bg-slate-800" />
-
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-xs text-slate-500">Eficiência</p>
-                        <p className="text-sm font-medium text-white">{editor.efficiency.toFixed(1)}h/vídeo</p>
-                    </div>
-                    <Badge
-                        variant="outline"
-                        className={cn(
-                            "text-xs border-0",
-                            isEfficient
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-red-500/10 text-red-400"
-                        )}
-                    >
-                        {isEfficient ? <ArrowDown className="w-3 h-3 mr-1" /> : <ArrowUp className="w-3 h-3 mr-1" />}
-                        {Math.abs(efficiencyDiff).toFixed(0)}%
-                    </Badge>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function ComparisonRow({ label, values, teamValue, format, lowerIsBetter = false }: {
+function ComparisonRow({ label, values, teamValue, format, lowerIsBetter = false, colors }: {
     label: string;
     values: number[];
     teamValue: number;
     format: 'number' | 'hours' | 'efficiency';
     lowerIsBetter?: boolean;
+    colors: string[];
 }) {
     const formatValue = (val: number) => {
         if (format === 'hours') return `${val.toFixed(1)}h`;
@@ -739,12 +875,13 @@ function ComparisonRow({ label, values, teamValue, format, lowerIsBetter = false
         return val.toFixed(0);
     };
 
+    const validValues = values.filter(v => v > 0);
     const bestValue = lowerIsBetter
-        ? Math.min(...values.filter(v => v > 0))
-        : Math.max(...values);
+        ? Math.min(...validValues)
+        : Math.max(...validValues);
 
     return (
-        <div className="grid grid-cols-4 gap-4 py-2">
+        <div className={cn("grid gap-4 py-2 border-b border-slate-800/50", `grid-cols-${values.length + 2}`)}>
             <div className="text-sm text-slate-400">{label}</div>
             {values.map((value, i) => (
                 <div key={i} className={cn(
@@ -752,7 +889,7 @@ function ComparisonRow({ label, values, teamValue, format, lowerIsBetter = false
                     value === bestValue && value > 0 ? "text-emerald-400" : "text-white"
                 )}>
                     {formatValue(value)}
-                    {value === bestValue && value > 0 && <span className="ml-1">★</span>}
+                    {value === bestValue && value > 0 && <span className="ml-1 text-emerald-400">★</span>}
                 </div>
             ))}
             <div className="text-sm text-slate-500 text-center">{formatValue(teamValue)}</div>
@@ -760,14 +897,15 @@ function ComparisonRow({ label, values, teamValue, format, lowerIsBetter = false
     );
 }
 
-function StatRow({ label, value, comparison, suffix = '', lowerIsBetter = false }: {
+function StatRow({ label, value, comparison, suffix = '', lowerIsBetter = false, color }: {
     label: string;
     value: number;
     comparison: number;
     suffix?: string;
     lowerIsBetter?: boolean;
+    color: string;
 }) {
-    const diff = ((value - comparison) / comparison) * 100;
+    const diff = comparison > 0 ? ((value - comparison) / comparison) * 100 : 0;
     const isPositive = lowerIsBetter ? diff < 0 : diff > 0;
 
     return (

@@ -10,6 +10,7 @@ export interface TeamMember {
     id: number;
     name: string;
     role: TeamRole;
+    color: string; // Cor fixa do editor
 }
 
 // Interface para equipe
@@ -36,9 +37,9 @@ export const TEAM_VSL: Team = {
     description: 'Video Sales Letter - Vídeos de vendas longos',
     color: '#8b5cf6', // violet
     members: [
-        { id: 96683006, name: 'Luma Viegas', role: 'leader' },
-        { id: 248675265, name: 'Nathan Soares', role: 'editor' },
-        { id: 84070913, name: 'Victor Mazzine', role: 'editor' },
+        { id: 96683006, name: 'Luma Viegas', role: 'leader', color: '#a855f7' },    // purple
+        { id: 248675265, name: 'Nathan Soares', role: 'editor', color: '#6366f1' }, // indigo
+        { id: 84070913, name: 'Victor Mazzine', role: 'editor', color: '#8b5cf6' }, // violet
     ],
     editorIds: [248675265, 84070913], // Média só entre Nathan e Mazzine
     leaderId: 96683006, // Luma é líder
@@ -54,10 +55,10 @@ export const TEAM_FUNIL: Team = {
     description: 'Vídeos para funis de vendas',
     color: '#3b82f6', // blue
     members: [
-        { id: 112053206, name: 'Moises Ramalho', role: 'editor' },
-        { id: 152605916, name: 'Victor Mendes', role: 'editor' },
-        { id: 3258937, name: 'Renato Fernandes', role: 'editor' },
-        { id: 3272897, name: 'Douglas Prado', role: 'editor' },
+        { id: 112053206, name: 'Moises Ramalho', role: 'editor', color: '#3b82f6' },   // blue
+        { id: 152605916, name: 'Victor Mendes', role: 'editor', color: '#0ea5e9' },   // sky
+        { id: 3258937, name: 'Renato Fernandes', role: 'editor', color: '#06b6d4' },  // cyan
+        { id: 3272897, name: 'Douglas Prado', role: 'editor', color: '#14b8a6' },     // teal
     ],
     editorIds: [112053206, 152605916, 3258937, 3272897], // Todos são editores
 };
@@ -72,8 +73,8 @@ export const TEAM_ADS: Team = {
     description: 'Criativos para anúncios',
     color: '#10b981', // emerald
     members: [
-        { id: 96683026, name: 'Leonardo da Silva', role: 'leader' },
-        { id: 84241154, name: 'Rafael Andrade', role: 'editor' },
+        { id: 96683026, name: 'Leonardo da Silva', role: 'leader', color: '#10b981' }, // emerald
+        { id: 84241154, name: 'Rafael Andrade', role: 'editor', color: '#22c55e' },    // green
     ],
     editorIds: [84241154], // Média só do Rafael
     leaderId: 96683026, // Leonardo é líder
@@ -89,8 +90,8 @@ export const TEAM_TP_MIC_LEAD: Team = {
     description: 'Troca de Pote, Microlead e Lead',
     color: '#f59e0b', // amber
     members: [
-        { id: 82093531, name: 'Loren Gayoso', role: 'editor' },
-        { id: 82074101, name: 'Bruno Cesar', role: 'editor' },
+        { id: 82093531, name: 'Loren Gayoso', role: 'editor', color: '#f59e0b' },  // amber
+        { id: 82074101, name: 'Bruno Cesar', role: 'editor', color: '#f97316' },   // orange
     ],
     editorIds: [82093531, 82074101], // Média entre os dois
 };
@@ -132,6 +133,31 @@ export function isLeader(memberId: number): boolean {
     const member = getMemberById(memberId);
     return member?.role === 'leader';
 }
+
+// Função para obter a cor de um editor pelo ID
+export function getEditorColorById(memberId: number): string {
+    const member = getMemberById(memberId);
+    return member?.color || '#6b7280'; // gray default
+}
+
+// Função para obter a cor de um editor pelo nome
+export function getEditorColorByName(name: string): string {
+    for (const team of ALL_TEAMS) {
+        const member = team.members.find(m => m.name === name);
+        if (member) return member.color;
+    }
+    return '#6b7280'; // gray default
+}
+
+// Status que indicam tarefa APROVADA ou CONCLUÍDA
+export const COMPLETED_STATUSES = [
+    'APROVADO',
+    'CONCLUÍDO',
+    'CONCLUIDO',
+    'COMPLETED',
+    'CLOSED',
+    'DONE'
+];
 
 // ============================================
 // IDs CONSOLIDADOS (para compatibilidade)

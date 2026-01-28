@@ -19,18 +19,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
-import { ALL_TEAMS, Team, TeamMember, isLeader, getMemberById, getTeamByMemberId } from '@/lib/constants';
+import { ALL_TEAMS, Team, TeamMember, isLeader, getMemberById, getTeamByMemberId, getEditorColorByName, COMPLETED_STATUSES } from '@/lib/constants';
 
-// --- CORES FIXAS POR EDITOR ---
-const EDITOR_COLORS = [
-    '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4',
-    '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7', '#eab308',
-];
-
-function getEditorColor(editorName: string, editorList: string[]): string {
-    const sortedEditors = [...editorList].sort();
-    const index = sortedEditors.indexOf(editorName);
-    return EDITOR_COLORS[index % EDITOR_COLORS.length];
+// Helper para verificar se status é APROVADO ou CONCLUÍDO
+function isCompletedStatus(status: string): boolean {
+    const statusUpper = status.toUpperCase();
+    return COMPLETED_STATUSES.some(s => statusUpper.includes(s));
 }
 
 interface DashboardViewProps {
@@ -148,7 +142,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     leadTime: 0,
                     avgTimeToComplete: 0,
                     inProgress: 0,
-                    color: getEditorColor(video.editorName, uniqueNames),
+                    color: getEditorColorByName(video.editorName), // Usa cor fixa do editor
                     avgEditingTime: 0,
                     avgRevisionTime: 0,
                     avgAlterationTime: 0,
@@ -166,7 +160,8 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
 
             const stats = statsMap.get(video.editorName)!;
 
-            if (['COMPLETED', 'CLOSED', 'DONE'].includes(video.status)) {
+            // Conta apenas tarefas APROVADO ou CONCLUÍDO
+            if (isCompletedStatus(video.status)) {
                 stats.videos += 1;
                 stats.hours += video.timeTrackedHours;
 
@@ -182,7 +177,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     if (video.phaseTime.revisionTimeMs > 0) stats.videosWithRevision += 1;
                     if (video.phaseTime.alterationTimeMs && video.phaseTime.alterationTimeMs > 0) stats.videosWithAlteration += 1;
                 }
-            } else if (['IN PROGRESS', 'DOING', 'REVIEW'].includes(video.status)) {
+            } else if (['IN PROGRESS', 'DOING', 'REVIEW', 'VIDEO: EDITANDO', 'PARA REVISÃO', 'REVISANDO', 'ALTERAÇÃO'].includes(video.status.toUpperCase())) {
                 stats.inProgress += 1;
             }
         });
@@ -859,13 +854,13 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                                     <PolarGrid stroke="#334155" />
                                     <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 10 }} />
-                                    {editors.map((editor, idx) => (
+                                    {editors.map((editor) => (
                                         <Radar
                                             key={editor.name}
                                             name={editor.name.split(' ')[0]}
                                             dataKey={editor.name.split(' ')[0]}
-                                            stroke={EDITOR_COLORS[idx % EDITOR_COLORS.length]}
-                                            fill={EDITOR_COLORS[idx % EDITOR_COLORS.length]}
+                                            stroke={editor.color}
+                                            fill={editor.color}
                                             fillOpacity={0.2}
                                             strokeWidth={2}
                                         />

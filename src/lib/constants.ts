@@ -57,8 +57,8 @@ export const TEAM_FUNIL: Team = {
     members: [
         { id: 112053206, name: 'Moises Ramalho', role: 'editor', color: '#3b82f6' },   // blue
         { id: 152605916, name: 'Victor Mendes', role: 'editor', color: '#0ea5e9' },   // sky
-        { id: 3258937, name: 'Renato Fernandes', role: 'editor', color: '#06b6d4' },  // cyan
-        { id: 3272897, name: 'Douglas Prado', role: 'editor', color: '#14b8a6' },     // teal
+        { id: 3258937, name: 'renato fernandes rodrigues', role: 'editor', color: '#06b6d4' },  // cyan - nome exato do ClickUp
+        { id: 3272897, name: 'Douglas Prado Cardoso', role: 'editor', color: '#14b8a6' },     // teal - nome exato do ClickUp
     ],
     editorIds: [112053206, 152605916, 3258937, 3272897], // Todos são editores
 };
@@ -140,13 +140,34 @@ export function getEditorColorById(memberId: number): string {
     return member?.color || '#6b7280'; // gray default
 }
 
-// Função para obter a cor de um editor pelo nome
+// Função para obter a cor de um editor pelo nome (case-insensitive)
 export function getEditorColorByName(name: string): string {
+    const nameLower = name.toLowerCase();
     for (const team of ALL_TEAMS) {
-        const member = team.members.find(m => m.name === name);
+        const member = team.members.find(m => m.name.toLowerCase() === nameLower);
         if (member) return member.color;
     }
     return '#6b7280'; // gray default
+}
+
+// Função para obter membro pelo nome (case-insensitive)
+export function getMemberByName(name: string): TeamMember | undefined {
+    const nameLower = name.toLowerCase();
+    for (const team of ALL_TEAMS) {
+        const member = team.members.find(m => m.name.toLowerCase() === nameLower);
+        if (member) return member;
+    }
+    return undefined;
+}
+
+// Função para obter equipe pelo nome do membro (case-insensitive)
+export function getTeamByMemberName(name: string): Team | undefined {
+    const nameLower = name.toLowerCase();
+    for (const team of ALL_TEAMS) {
+        const member = team.members.find(m => m.name.toLowerCase() === nameLower);
+        if (member) return team;
+    }
+    return undefined;
 }
 
 // Status que indicam tarefa APROVADA ou CONCLUÍDA

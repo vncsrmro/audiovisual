@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
-import { ALL_TEAMS, Team, TeamMember, isLeader, getMemberById, getTeamByMemberId, getEditorColorByName, COMPLETED_STATUSES } from '@/lib/constants';
+import { ALL_TEAMS, Team, TeamMember, isLeader, getMemberById, getTeamByMemberId, getEditorColorByName, COMPLETED_STATUSES, getMemberByName, getTeamByMemberName } from '@/lib/constants';
 
 // Helper para verificar se status é APROVADO ou CONCLUÍDO
 function isCompletedStatus(status: string): boolean {
@@ -58,7 +58,7 @@ function CustomTooltip({ active, payload, label }: any) {
 // --- EDITOR STATS TYPE ---
 interface EditorStat {
     name: string;
-    oditorId: number;
+    editorId: number;
     videos: number;
     hours: number;
     efficiency: number;
@@ -113,13 +113,10 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         return videos;
     }, [initialData, timeRange]);
 
-    // --- Encontrar o ID do editor pelo nome ---
+    // --- Encontrar o ID do editor pelo nome (case-insensitive) ---
     const getEditorIdByName = (name: string): number => {
-        for (const team of ALL_TEAMS) {
-            const member = team.members.find(m => m.name === name);
-            if (member) return member.id;
-        }
-        return 0;
+        const member = getMemberByName(name);
+        return member?.id || 0;
     };
 
     // --- EDITOR STATS COM TEAM INFO ---
@@ -131,11 +128,12 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         filteredVideos.forEach(video => {
             if (!statsMap.has(video.editorName)) {
                 const editorId = getEditorIdByName(video.editorName);
-                const team = getTeamByMemberId(editorId);
+                // Busca equipe por ID ou por nome (fallback)
+                const team = editorId ? getTeamByMemberId(editorId) : getTeamByMemberName(video.editorName);
 
                 statsMap.set(video.editorName, {
                     name: video.editorName,
-                    oditorId: editorId,
+                    editorId: editorId,
                     videos: 0,
                     hours: 0,
                     efficiency: 0,

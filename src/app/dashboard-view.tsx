@@ -278,8 +278,9 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
         if (editor.avgEditingTime > 0 && editor.avgEditingTime < teamAvg.avgEditingTime * 0.8) score += 10;
         else if (editor.avgEditingTime > teamAvg.avgEditingTime * 1.3) score -= 10;
 
-        if (editor.revisionRate < teamAvg.revisionRate * 0.7) score += 15;
-        else if (editor.revisionRate > teamAvg.revisionRate * 1.3) score -= 15;
+        // Taxa de Alteração é o indicador de qualidade (retrabalho real)
+        if (editor.alterationRate < teamAvg.alterationRate * 0.7) score += 15;
+        else if (editor.alterationRate > teamAvg.alterationRate * 1.3) score -= 15;
 
         if (editor.alterationRate < teamAvg.alterationRate * 0.7) score += 10;
         else if (editor.alterationRate > teamAvg.alterationRate * 1.3) score -= 10;
@@ -486,17 +487,17 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
 
                                         <div className="mt-4 pt-4 border-t border-slate-800">
                                             <div className="flex items-center justify-between text-sm">
-                                                <span className="text-slate-500">Taxa de Revisão</span>
+                                                <span className="text-slate-500">Taxa de Alteração</span>
                                                 <Badge
                                                     variant="outline"
                                                     className={cn(
                                                         "border-0",
-                                                        data.teamAvg.revisionRate < 30 ? "bg-emerald-500/10 text-emerald-400" :
-                                                        data.teamAvg.revisionRate < 60 ? "bg-amber-500/10 text-amber-400" :
+                                                        data.teamAvg.alterationRate < 20 ? "bg-emerald-500/10 text-emerald-400" :
+                                                        data.teamAvg.alterationRate < 40 ? "bg-amber-500/10 text-amber-400" :
                                                         "bg-red-500/10 text-red-400"
                                                     )}
                                                 >
-                                                    {data.teamAvg.revisionRate.toFixed(0)}%
+                                                    {data.teamAvg.alterationRate.toFixed(0)}%
                                                 </Badge>
                                             </div>
                                         </div>
@@ -563,7 +564,7 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                             <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Equipe</th>
                                             <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Vídeos</th>
                                             <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Eficiência</th>
-                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Taxa Revisão</th>
+                                            <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase">Taxa Alteração</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/50">
@@ -584,6 +585,10 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center gap-2">
+                                                            <div
+                                                                className="w-3 h-3 rounded-full"
+                                                                style={{ backgroundColor: editor.color }}
+                                                            />
                                                             <span className="text-white font-medium">{editor.name}</span>
                                                             {editor.isLeader && (
                                                                 <Crown className="w-4 h-4 text-amber-500" />
@@ -606,12 +611,12 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                                                             variant="outline"
                                                             className={cn(
                                                                 "border-0",
-                                                                editor.revisionRate < 30 ? "bg-emerald-500/10 text-emerald-400" :
-                                                                editor.revisionRate < 60 ? "bg-amber-500/10 text-amber-400" :
+                                                                editor.alterationRate < 20 ? "bg-emerald-500/10 text-emerald-400" :
+                                                                editor.alterationRate < 40 ? "bg-amber-500/10 text-amber-400" :
                                                                 "bg-red-500/10 text-red-400"
                                                             )}
                                                         >
-                                                            {editor.revisionRate.toFixed(0)}%
+                                                            {editor.alterationRate.toFixed(0)}%
                                                         </Badge>
                                                     </td>
                                                 </tr>
@@ -716,12 +721,12 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                     subtitle="dos editores"
                 />
                 <MetricCard
-                    title="Taxa Revisão"
-                    value={teamAvg.revisionRate.toFixed(0)}
+                    title="Taxa Alteração"
+                    value={teamAvg.alterationRate.toFixed(0)}
                     suffix="%"
-                    icon={RotateCcw}
+                    icon={AlertCircle}
                     color="amber"
-                    subtitle="média da equipe"
+                    subtitle="retrabalho médio"
                 />
             </div>
 
@@ -837,7 +842,7 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                                             metric: 'Qualidade',
                                             ...Object.fromEntries(editors.map(e => [
                                                 e.name.split(' ')[0],
-                                                Math.max(0, 100 - e.revisionRate)
+                                                Math.max(0, 100 - e.alterationRate) // Menos alteração = mais qualidade
                                             ]))
                                         },
                                         {
@@ -877,7 +882,7 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                     const score = calculateScore(editor, teamAvg);
                     const vsVideos = teamAvg.videos > 0 ? ((editor.videos - teamAvg.videos) / teamAvg.videos) * 100 : 0;
                     const vsEfficiency = teamAvg.efficiency > 0 ? ((editor.efficiency - teamAvg.efficiency) / teamAvg.efficiency) * 100 : 0;
-                    const vsRevision = teamAvg.revisionRate > 0 ? ((editor.revisionRate - teamAvg.revisionRate) / teamAvg.revisionRate) * 100 : 0;
+                    const vsAlteration = teamAvg.alterationRate > 0 ? ((editor.alterationRate - teamAvg.alterationRate) / teamAvg.alterationRate) * 100 : 0;
 
                     const strengths: string[] = [];
                     const improvements: string[] = [];
@@ -888,8 +893,8 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                     if (vsEfficiency < -20) strengths.push('Boa eficiência');
                     else if (vsEfficiency > 30) improvements.push('Melhorar eficiência');
 
-                    if (vsRevision < -20) strengths.push('Baixa revisão');
-                    else if (vsRevision > 30) improvements.push('Reduzir revisões');
+                    if (vsAlteration < -20) strengths.push('Poucos retrabalhos');
+                    else if (vsAlteration > 30) improvements.push('Reduzir alterações');
 
                     return (
                         <Card
@@ -950,12 +955,12 @@ function TeamDetailView({ teamInfo, formatHours, calculateScore, ChartWrapper }:
                                         <p className="font-bold text-white">{editor.efficiency.toFixed(1)}h</p>
                                     </div>
                                     <div className="bg-slate-800/50 rounded-lg p-2">
-                                        <p className="text-slate-500 text-xs">Taxa Revisão</p>
+                                        <p className="text-slate-500 text-xs">Taxa Alteração</p>
                                         <p className={cn(
                                             "font-bold",
-                                            editor.revisionRate < 30 ? "text-emerald-400" :
-                                            editor.revisionRate < 60 ? "text-amber-400" : "text-red-400"
-                                        )}>{editor.revisionRate.toFixed(0)}%</p>
+                                            editor.alterationRate < 20 ? "text-emerald-400" :
+                                            editor.alterationRate < 40 ? "text-amber-400" : "text-red-400"
+                                        )}>{editor.alterationRate.toFixed(0)}%</p>
                                     </div>
                                     <div className="bg-slate-800/50 rounded-lg p-2">
                                         <p className="text-slate-500 text-xs">Horas</p>

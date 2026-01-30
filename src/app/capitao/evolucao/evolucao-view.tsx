@@ -18,26 +18,26 @@ interface EvolucaoViewProps {
     lastUpdated: number;
 }
 
-// Datas de admissão dos editores (precisa ser configurado manualmente ou extraído do ClickUp)
+// Datas de admissão dos editores (baseado na primeira tarefa no ClickUp)
 // Formato: ID do editor -> Data de admissão (timestamp)
 const ADMISSION_DATES: Record<number, number> = {
     // VSL
-    248675265: new Date('2024-06-01').getTime(), // Nathan Soares
-    84070913: new Date('2024-03-15').getTime(),  // Victor Mazzine
+    248675265: new Date('2026-01-15').getTime(), // Nathan Soares - primeira tarefa: 15/01/2026
+    84070913: new Date('2026-01-26').getTime(),  // Victor Mazzine - primeira tarefa: 26/01/2026
 
     // Funil
-    112053206: new Date('2023-09-01').getTime(), // Moises Ramalho
-    152605916: new Date('2024-01-10').getTime(), // Victor Mendes
-    3258937: new Date('2024-02-20').getTime(),   // Renato Fernandes
-    3272897: new Date('2024-04-01').getTime(),   // Douglas Prado
+    112053206: new Date('2026-01-28').getTime(), // Moises Ramalho - primeira tarefa: 28/01/2026
+    152605916: new Date('2026-01-28').getTime(), // Victor Mendes - primeira tarefa: 28/01/2026
+    3258937: new Date('2025-08-19').getTime(),   // Renato Fernandes - primeira tarefa: 19/08/2025
+    3272897: new Date('2025-07-29').getTime(),   // Douglas Prado - primeira tarefa: 29/07/2025
 
     // ADs
-    96683026: new Date('2022-05-01').getTime(),  // Leonardo da Silva (líder)
-    84241154: new Date('2024-07-15').getTime(),  // Rafael Andrade
+    96683026: new Date('2026-01-15').getTime(),  // Leonardo da Silva (líder) - primeira tarefa: 15/01/2026
+    84241154: new Date('2026-01-27').getTime(),  // Rafael Andrade - primeira tarefa: 27/01/2026
 
     // TP/MIC/LEAD
-    82093531: new Date('2023-11-01').getTime(),  // Loren Gayoso
-    82074101: new Date('2024-08-01').getTime(),  // Bruno Cesar
+    82093531: new Date('2025-08-01').getTime(),  // Loren Gayoso - primeira tarefa: 01/08/2025
+    82074101: new Date('2025-11-19').getTime(),  // Bruno Cesar - primeira tarefa: 19/11/2025
 };
 
 interface EditorEvolution {

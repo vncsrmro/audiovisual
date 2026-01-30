@@ -342,6 +342,88 @@ export class ClickUpService {
 
         return phaseTimeMap;
     }
+    /**
+     * Fetches comments for a single task
+     * Frame.io links are usually shared in task comments
+     */
+    async fetchTaskComments(taskId: string): Promise<any[]> {
+        if (!this.apiKey) {
+            return [];
+        }
+
+        try {
+            const url = `${CLICKUP_API_URL}/task/${taskId}/comment`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': this.apiKey,
+                    'Content-Type': 'application/json',
+                },
+                cache: 'no-store',
+            });
+
+            if (!response.ok) {
+                console.error(`[ClickUp] Comments error for task ${taskId}: ${response.status}`);
+                return [];
+            }
+
+            const data = await response.json();
+            return data.comments || [];
+        } catch (error) {
+            console.error(`[ClickUp] Failed to fetch comments for task ${taskId}:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * Fetches tasks with their comments and extracts Frame.io links
+     */
+    async fetchTasksWithFrameIoLinks(tasks: ClickUpTask[]): Promise<{ task: ClickUpTask; frameIoLinks: string[]; comments: any[] }[]> {
+        const results: { task: ClickUpTask; frameIoLinks: string[]; comments: any[] }[] = [];
+        const frameIoRegex = /https?:\/\/(?:f\.io|frame\.io|next\.frame\.io)\/[^\s<>"']+/gi;
+
+        // Process in batches
+        const batchSize = 5;
+        for (let i = 0; i < tasks.length; i += batchSize) {
+            const batch = tasks.slice(i, i + batchSize);
+
+            const promises = batch.map(async (task) => {
+                const comments = await this.fetchTaskComments(task.id);
+                const allLinks: string[] = [];
+
+                // Check task description
+                const description = task.description || task.text_content || '';
+                const descLinks = description.match(frameIoRegex) || [];
+                allLinks.push(...descLinks);
+
+                // Check all comments
+                for (const comment of comments) {
+                    const commentText = comment.comment_text || '';
+                    const commentLinks = commentText.match(frameIoRegex) || [];
+                    allLinks.push(...commentLinks);
+                }
+
+                // Remove duplicates
+                const uniqueLinks = [...new Set(allLinks)];
+
+                return {
+                    task,
+                    frameIoLinks: uniqueLinks,
+                    comments
+                };
+            });
+
+            const batchResults = await Promise.all(promises);
+            results.push(...batchResults);
+
+            // Rate limiting delay
+            if (i + batchSize < tasks.length) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+
+        return results;
+    }
 }
 
 export const clickupService = new ClickUpService();

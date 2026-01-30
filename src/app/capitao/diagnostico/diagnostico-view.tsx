@@ -5,7 +5,7 @@ import { ALL_TEAMS, getTeamByMemberName, getMemberByName } from '@/lib/constants
 import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    Legend
+    Legend, LabelList
 } from 'recharts';
 import {
     AlertTriangle,
@@ -308,20 +308,41 @@ export function DiagnosticoView({
                         Comparativo Semanal por Equipe
                     </h2>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={weeklyComparisonData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                            <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                            <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                        <BarChart data={weeklyComparisonData} barGap={8}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={{ stroke: '#333' }} />
+                            <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={{ stroke: '#333' }} />
                             <Tooltip
                                 contentStyle={{
                                     backgroundColor: '#12121a',
                                     border: '1px solid #3b0764',
                                     borderRadius: '8px',
                                 }}
+                                labelStyle={{ color: '#fff', fontWeight: 'bold' }}
                             />
-                            <Legend />
-                            <Bar dataKey="Esta Semana" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Semana Anterior" fill="#4b5563" radius={[4, 4, 0, 0]} />
+                            <Legend
+                                wrapperStyle={{ paddingTop: '20px' }}
+                                formatter={(value) => <span style={{ color: '#9ca3af' }}>{value}</span>}
+                            />
+                            <Bar
+                                dataKey="Esta Semana"
+                                fill="#8b5cf6"
+                                radius={[6, 6, 0, 0]}
+                                strokeWidth={2}
+                                stroke="#a78bfa"
+                            >
+                                <LabelList dataKey="Esta Semana" position="top" fill="#a78bfa" fontSize={11} fontWeight="bold" />
+                            </Bar>
+                            <Bar
+                                dataKey="Semana Anterior"
+                                fill="#374151"
+                                radius={[6, 6, 0, 0]}
+                                strokeWidth={1}
+                                stroke="#4b5563"
+                                opacity={0.7}
+                            >
+                                <LabelList dataKey="Semana Anterior" position="top" fill="#6b7280" fontSize={10} />
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

@@ -12,7 +12,10 @@ export class DataService {
         return tasks.map(task => {
             // 1. Extract Lead Time (Closed - Created)
             const created = parseInt(task.date_created);
-            const closed = task.date_closed ? parseInt(task.date_closed) : null;
+            const updated = task.date_updated ? parseInt(task.date_updated) : null;
+
+            // Use date_closed if available, otherwise use date_updated for completed tasks
+            let closed = task.date_closed ? parseInt(task.date_closed) : null;
 
             // 2. Extract Editor (First Assignee)
             const assignee = task.assignees.length > 0 ? task.assignees[0] : null;
@@ -73,8 +76,14 @@ export class DataService {
             // 6. Normalizing Status (Handle Portuguese)
             let normalizedStatus = task.status.status.toUpperCase();
             // APROVADO e CONCLUÍDO são considerados como COMPLETED
-            if (['APROVADO', 'CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE', 'CLOSED', 'COMPLETE', 'DONE'].includes(normalizedStatus)) {
+            const isCompletedStatus = ['APROVADO', 'CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE', 'CLOSED', 'COMPLETE', 'DONE'].includes(normalizedStatus);
+
+            if (isCompletedStatus) {
                 normalizedStatus = 'COMPLETED';
+                // Se não tem date_closed mas está em status completado, usar date_updated
+                if (!closed && updated) {
+                    closed = updated;
+                }
             } else if (['EM ANDAMENTO', 'ANDAMENTO', 'FAZENDO', 'DOING', 'IN PROGRESS', 'RUNNING'].includes(normalizedStatus)) {
                 normalizedStatus = 'IN PROGRESS';
             } else if (['REVISÃO', 'REVISAO', 'REVIEW', 'QA', 'APROVAÇÃO'].includes(normalizedStatus)) {

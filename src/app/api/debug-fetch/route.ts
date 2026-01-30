@@ -118,8 +118,37 @@ export async function GET(request: Request) {
             date_created: tasksNoFilter[0].date_created,
             date_created_readable: new Date(parseInt(tasksNoFilter[0].date_created)).toISOString(),
             status: tasksNoFilter[0].status?.status,
-            assignees: tasksNoFilter[0].assignees?.map((a: any) => ({ id: a.id, username: a.username }))
+            assignees: tasksNoFilter[0].assignees?.map((a: any) => ({ id: a.id, username: a.username })),
+            tags: tasksNoFilter[0].tags?.map((t: any) => t.name)
         } : null;
+
+        // Collect all unique assignee IDs and their counts
+        const assigneeCounts: Record<string, { id: number; username: string; count: number }> = {};
+        for (const task of tasksNoFilter) {
+            for (const assignee of (task.assignees || [])) {
+                const key = String(assignee.id);
+                if (!assigneeCounts[key]) {
+                    assigneeCounts[key] = { id: assignee.id, username: assignee.username, count: 0 };
+                }
+                assigneeCounts[key].count++;
+            }
+        }
+
+        // Collect all unique tags
+        const tagCounts: Record<string, number> = {};
+        for (const task of tasksNoFilter) {
+            for (const tag of (task.tags || [])) {
+                const tagName = tag.name?.toUpperCase() || 'UNKNOWN';
+                tagCounts[tagName] = (tagCounts[tagName] || 0) + 1;
+            }
+        }
+
+        // Status distribution
+        const statusCounts: Record<string, number> = {};
+        for (const task of tasksNoFilter) {
+            const status = task.status?.status || 'unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+        }
 
         return NextResponse.json({
             configDebug: {
@@ -150,6 +179,9 @@ export async function GET(request: Request) {
                 filterDate: new Date(START_DATE_2025).toISOString()
             },
             sampleTask,
+            allAssignees: Object.values(assigneeCounts).sort((a, b) => b.count - a.count),
+            allTags: tagCounts,
+            statusDistribution: statusCounts,
             currentTimestamp: Date.now(),
             currentDate: new Date().toISOString()
         });

@@ -15,8 +15,9 @@ import {
 import {
     Users, TrendingUp, Target, Award, Clock, Zap, BarChart3, GitCompare,
     ArrowUp, ArrowDown, Calendar, RefreshCw, Timer, ClipboardList, Edit3, RotateCcw, CheckCircle, AlertCircle,
-    Lightbulb, AlertTriangle, ThumbsUp, Activity, Crown, UserCheck, Building2
+    Lightbulb, AlertTriangle, ThumbsUp, Activity, Crown, UserCheck, Building2, Anchor
 } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { subDays } from 'date-fns';
 import { ALL_TEAMS, Team, TeamMember, isLeader, getMemberById, getTeamByMemberId, getEditorColorByName, COMPLETED_STATUSES, getMemberByName, getTeamByMemberName } from '@/lib/constants';
@@ -292,7 +293,16 @@ export default function DashboardView({ initialData, lastUpdated }: DashboardVie
                     </div>
 
                     {/* Controls */}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {/* Link para Aba Capitão */}
+                        <Link
+                            href="/capitao"
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors"
+                        >
+                            <Anchor className="w-4 h-4" />
+                            <span className="font-medium">Capitão</span>
+                        </Link>
+
                         {/* Time Range */}
                         <Select value={timeRange} onValueChange={setTimeRange}>
                             <SelectTrigger className="w-[140px] bg-slate-800/50 border-slate-700/50 text-slate-200">

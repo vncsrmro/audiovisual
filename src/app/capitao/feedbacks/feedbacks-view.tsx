@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ClickUpTask } from '@/types';
-import { getMemberById } from '@/lib/constants';
+import { getMemberById, AUDIOVISUAL_TEAM_IDS } from '@/lib/constants';
 import { FeedbackCategory } from '@/lib/frameio-api.service';
 import {
     AlertTriangle,
@@ -17,10 +17,11 @@ import {
     DollarSign,
     Film,
     HelpCircle,
-    TrendingDown,
     Award,
     RefreshCw,
-    Loader2
+    Loader2,
+    User,
+    MessageSquare
 } from 'lucide-react';
 
 interface FrameIoCommentWithCategory {
@@ -48,13 +49,26 @@ interface FeedbacksViewProps {
 }
 
 interface EditorStats {
+    id: string;
     name: string;
     color: string;
     totalCompleted: number;
     withAlteration: number;
     alterationRate: number;
-    errorPatterns: Record<FeedbackCategory, number>;
-    totalErrors: number;
+}
+
+interface EditorFeedbackData {
+    editor: { id: string; name: string; color: string };
+    stats: {
+        totalTasks: number;
+        tasksWithAlteration: number;
+        alterationRate: number;
+        totalFrameIoLinks: number;
+        linksProcessed: number;
+        totalFeedbacks: number;
+    };
+    errorPatterns: Array<{ category: string; count: number; percentage: number }>;
+    recentComments: Array<{ text: string; category: string; timestamp: string; taskName: string }>;
 }
 
 const CATEGORY_ICONS: Record<FeedbackCategory, any> = {
@@ -83,40 +97,11 @@ const CATEGORY_COLORS: Record<FeedbackCategory, string> = {
     'Outros': 'bg-gray-500/20 text-gray-400 border-gray-500/30'
 };
 
-const ALL_CATEGORIES: FeedbackCategory[] = [
-    'Áudio/Voz', 'Legenda/Texto', 'Corte/Transição', 'Fonte/Tipografia',
-    'Cor/Imagem', 'Timing/Sincronização', 'Logo/Marca', 'CTA/Preço',
-    'Footage/Vídeo', 'Outros'
-];
-
 export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, lastUpdated }: FeedbacksViewProps) {
-    const [expandedEditor, setExpandedEditor] = useState<string | null>(null);
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [updateResult, setUpdateResult] = useState<{ success: boolean; message: string } | null>(null);
-
-    const handleUpdate = async () => {
-        setIsUpdating(true);
-        setUpdateResult(null);
-
-        try {
-            const response = await fetch('/api/feedbacks/update', { method: 'POST' });
-            const data = await response.json();
-
-            if (data.success) {
-                setUpdateResult({
-                    success: true,
-                    message: data.message || `${data.stats?.commentsExtracted || 0} feedbacks extraídos`
-                });
-                // Don't reload - show results in the message
-            } else {
-                setUpdateResult({ success: false, message: data.error || 'Erro ao atualizar' });
-            }
-        } catch (error) {
-            setUpdateResult({ success: false, message: 'Erro de conexão' });
-        } finally {
-            setIsUpdating(false);
-        }
-    };
+    const [selectedEditor, setSelectedEditor] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [editorData, setEditorData] = useState<EditorFeedbackData | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Calculate stats by editor
     const editorStatsMap: Record<string, EditorStats> = {};
@@ -126,32 +111,24 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
         if (!assignee) return;
 
         const member = getMemberById(assignee.id);
+        const editorId = assignee.id;
         const editorName = member?.name || assignee.username;
         const editorColor = member?.color || '#6b7280';
 
-        if (!editorStatsMap[editorName]) {
-            editorStatsMap[editorName] = {
+        if (!editorStatsMap[editorId]) {
+            editorStatsMap[editorId] = {
+                id: editorId,
                 name: editorName,
                 color: editorColor,
                 totalCompleted: 0,
                 withAlteration: 0,
-                alterationRate: 0,
-                errorPatterns: ALL_CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat]: 0 }), {} as Record<FeedbackCategory, number>),
-                totalErrors: 0
+                alterationRate: 0
             };
         }
 
-        editorStatsMap[editorName].totalCompleted++;
+        editorStatsMap[editorId].totalCompleted++;
         if (data.hadAlteration) {
-            editorStatsMap[editorName].withAlteration++;
-        }
-
-        // Count error patterns from Frame.io comments
-        if (data.frameIoComments) {
-            data.frameIoComments.forEach(comment => {
-                editorStatsMap[editorName].errorPatterns[comment.category]++;
-                editorStatsMap[editorName].totalErrors++;
-            });
+            editorStatsMap[editorId].withAlteration++;
         }
     });
 
@@ -170,22 +147,6 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
     const totalCompleted = feedbackData.length;
     const totalWithAlteration = feedbackData.filter(d => d.hadAlteration).length;
     const overallRate = totalCompleted > 0 ? (totalWithAlteration / totalCompleted) * 100 : 0;
-    const totalComments = feedbackData.reduce((acc, d) => acc + (d.frameIoComments?.length || 0), 0);
-
-    // Global error patterns
-    const globalErrorPatterns: Record<FeedbackCategory, number> = ALL_CATEGORIES.reduce(
-        (acc, cat) => ({ ...acc, [cat]: 0 }),
-        {} as Record<FeedbackCategory, number>
-    );
-    feedbackData.forEach(data => {
-        data.frameIoComments?.forEach(comment => {
-            globalErrorPatterns[comment.category]++;
-        });
-    });
-
-    const topGlobalErrors = Object.entries(globalErrorPatterns)
-        .filter(([_, count]) => count > 0)
-        .sort((a, b) => b[1] - a[1]);
 
     const getAlterationRateColor = (rate: number) => {
         if (rate <= 15) return 'text-green-400';
@@ -193,181 +154,216 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
         return 'text-red-400';
     };
 
+    const loadEditorFeedback = async (editorId: string) => {
+        setSelectedEditor(editorId);
+        setIsLoading(true);
+        setError(null);
+        setEditorData(null);
+
+        try {
+            const response = await fetch('/api/feedbacks/editor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ editorId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setEditorData(data);
+            } else {
+                setError(data.error || 'Erro ao carregar feedbacks');
+            }
+        } catch (err) {
+            setError('Erro de conexão');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
-        <div className="p-6 space-y-6 max-w-5xl mx-auto">
+        <div className="p-6 space-y-6 max-w-6xl mx-auto">
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-white">Padrões de Erro</h1>
                     <p className="text-gray-500 text-sm">
-                        {totalCompleted} tasks • {totalWithAlteration} alterações ({overallRate.toFixed(0)}%) • {totalComments} feedbacks analisados
+                        {totalCompleted} tasks • {totalWithAlteration} alterações ({overallRate.toFixed(0)}%)
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={handleUpdate}
-                        disabled={isUpdating}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        {isUpdating ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <RefreshCw className="w-4 h-4" />
-                        )}
-                        {isUpdating ? 'Atualizando...' : 'Atualizar'}
-                    </button>
-                    <div className="text-xs text-gray-600">
-                        {new Date(lastUpdated).toLocaleString('pt-BR')}
-                    </div>
+                <div className="text-xs text-gray-600">
+                    {new Date(lastUpdated).toLocaleString('pt-BR')}
                 </div>
             </div>
 
-            {/* Update Result Message */}
-            {updateResult && (
-                <div className={`p-3 rounded-lg text-sm ${
-                    updateResult.success
-                        ? 'bg-green-950/30 border border-green-900/50 text-green-400'
-                        : 'bg-red-950/30 border border-red-900/50 text-red-400'
-                }`}>
-                    {updateResult.message}
-                </div>
-            )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Editor List */}
+                <div className="lg:col-span-1 space-y-2">
+                    <h2 className="text-sm font-medium text-gray-400 mb-3">Selecione um Editor</h2>
+                    {editorStats.map((editor) => {
+                        const isSelected = selectedEditor === editor.id;
+                        const isTopPerformer = editor.alterationRate === 0;
+                        const isWorstPerformer = editor.alterationRate > 50;
 
-            {/* Global Error Patterns */}
-            {topGlobalErrors.length > 0 && (
-                <div className="bg-[#12121a] border border-gray-800 rounded-xl p-5">
-                    <h2 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-                        <TrendingDown className="w-4 h-4" />
-                        Erros Mais Frequentes
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                        {topGlobalErrors.map(([category, count]) => {
-                            const Icon = CATEGORY_ICONS[category as FeedbackCategory];
-                            const colors = CATEGORY_COLORS[category as FeedbackCategory];
-                            return (
-                                <div
-                                    key={category}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colors}`}
-                                >
-                                    <Icon className="w-4 h-4" />
-                                    <span className="text-sm">{category}</span>
-                                    <span className="text-xs opacity-70">{count}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* Editor List */}
-            <div className="space-y-2">
-                {editorStats.map((editor, index) => {
-                    const topErrors = Object.entries(editor.errorPatterns)
-                        .filter(([_, count]) => count > 0)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 5);
-
-                    const isExpanded = expandedEditor === editor.name;
-                    const isTopPerformer = index === editorStats.length - 1 && editor.alterationRate < 15;
-                    const isWorstPerformer = index === 0 && editor.alterationRate > 30;
-
-                    return (
-                        <div
-                            key={editor.name}
-                            className={`bg-[#12121a] border rounded-xl overflow-hidden ${
-                                isWorstPerformer ? 'border-red-900/50' :
-                                isTopPerformer ? 'border-green-900/50' : 'border-gray-800'
-                            }`}
-                        >
+                        return (
                             <button
-                                onClick={() => setExpandedEditor(isExpanded ? null : editor.name)}
-                                className="w-full p-4 flex items-center gap-4 hover:bg-gray-900/50 transition-colors"
+                                key={editor.id}
+                                onClick={() => loadEditorFeedback(editor.id)}
+                                disabled={isLoading}
+                                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all ${
+                                    isSelected
+                                        ? 'bg-purple-600/20 border-2 border-purple-500'
+                                        : 'bg-[#12121a] border border-gray-800 hover:border-gray-700'
+                                } ${isLoading ? 'opacity-50' : ''}`}
                             >
-                                {/* Avatar */}
                                 <div
                                     className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
                                     style={{ backgroundColor: editor.color }}
                                 >
                                     {editor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                 </div>
-
-                                {/* Name and stats */}
                                 <div className="flex-1 text-left min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-white font-medium truncate">{editor.name}</span>
-                                        {isTopPerformer && <Award className="w-4 h-4 text-green-400" />}
-                                        {isWorstPerformer && <AlertTriangle className="w-4 h-4 text-red-400" />}
+                                        <span className="text-white font-medium truncate text-sm">{editor.name}</span>
+                                        {isTopPerformer && <Award className="w-3 h-3 text-green-400" />}
+                                        {isWorstPerformer && <AlertTriangle className="w-3 h-3 text-red-400" />}
                                     </div>
                                     <div className="text-xs text-gray-500">
-                                        {editor.totalCompleted} tasks • {editor.withAlteration} alterações
-                                        {editor.totalErrors > 0 && ` • ${editor.totalErrors} erros`}
+                                        {editor.withAlteration}/{editor.totalCompleted} alterações
                                     </div>
                                 </div>
+                                <div className={`text-lg font-bold ${getAlterationRateColor(editor.alterationRate)}`}>
+                                    {editor.alterationRate.toFixed(0)}%
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
 
-                                {/* Mini error badges (collapsed view) */}
-                                {!isExpanded && topErrors.length > 0 && (
-                                    <div className="hidden sm:flex gap-1">
-                                        {topErrors.slice(0, 3).map(([cat, count]) => {
-                                            const Icon = CATEGORY_ICONS[cat as FeedbackCategory];
-                                            const colors = CATEGORY_COLORS[cat as FeedbackCategory];
+                {/* Editor Details */}
+                <div className="lg:col-span-2">
+                    {!selectedEditor && (
+                        <div className="bg-[#12121a] border border-gray-800 rounded-xl p-12 text-center">
+                            <User className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                            <p className="text-gray-400">Selecione um editor para ver os padrões de erro</p>
+                            <p className="text-gray-600 text-sm mt-2">Os feedbacks serão extraídos do Frame.io automaticamente</p>
+                        </div>
+                    )}
+
+                    {isLoading && (
+                        <div className="bg-[#12121a] border border-gray-800 rounded-xl p-12 text-center">
+                            <Loader2 className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-spin" />
+                            <p className="text-gray-400">Extraindo feedbacks do Frame.io...</p>
+                            <p className="text-gray-600 text-sm mt-2">Isso pode levar alguns segundos</p>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="bg-red-950/20 border border-red-900/50 rounded-xl p-6 text-center">
+                            <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                            <p className="text-red-400">{error}</p>
+                        </div>
+                    )}
+
+                    {editorData && !isLoading && (
+                        <div className="space-y-4">
+                            {/* Editor Header */}
+                            <div className="bg-[#12121a] border border-gray-800 rounded-xl p-4">
+                                <div className="flex items-center gap-4">
+                                    <div
+                                        className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                                        style={{ backgroundColor: editorData.editor.color }}
+                                    >
+                                        {editorData.editor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-bold text-white">{editorData.editor.name}</h3>
+                                        <p className="text-gray-500 text-sm">
+                                            {editorData.stats.totalTasks} tasks • {editorData.stats.tasksWithAlteration} alterações • {editorData.stats.totalFeedbacks} feedbacks
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className={`text-3xl font-bold ${getAlterationRateColor(editorData.stats.alterationRate)}`}>
+                                            {editorData.stats.alterationRate}%
+                                        </div>
+                                        <div className="text-xs text-gray-500">taxa de alteração</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Error Patterns */}
+                            {editorData.errorPatterns.length > 0 ? (
+                                <div className="bg-[#12121a] border border-gray-800 rounded-xl p-4">
+                                    <h4 className="text-sm font-medium text-gray-400 mb-3">Padrões de Erro</h4>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {editorData.errorPatterns.map(({ category, count, percentage }) => {
+                                            const Icon = CATEGORY_ICONS[category as FeedbackCategory] || HelpCircle;
+                                            const colors = CATEGORY_COLORS[category as FeedbackCategory] || CATEGORY_COLORS['Outros'];
                                             return (
                                                 <div
-                                                    key={cat}
-                                                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs border ${colors}`}
-                                                    title={cat}
+                                                    key={category}
+                                                    className={`flex items-center gap-2 p-3 rounded-lg border ${colors}`}
                                                 >
-                                                    <Icon className="w-3 h-3" />
-                                                    <span>{count}</span>
+                                                    <Icon className="w-5 h-5 flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs truncate">{category}</div>
+                                                        <div className="text-lg font-bold">{count}</div>
+                                                    </div>
+                                                    <div className="text-xs opacity-60">{percentage}%</div>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                )}
-
-                                {/* Rate */}
-                                <div className="text-right flex-shrink-0">
-                                    <div className={`text-lg font-bold ${getAlterationRateColor(editor.alterationRate)}`}>
-                                        {editor.alterationRate.toFixed(0)}%
-                                    </div>
                                 </div>
+                            ) : (
+                                <div className="bg-green-950/20 border border-green-900/50 rounded-xl p-6 text-center">
+                                    <Award className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                                    <p className="text-green-400 font-medium">Nenhum erro encontrado!</p>
+                                    <p className="text-gray-500 text-sm">
+                                        {editorData.stats.linksProcessed > 0
+                                            ? `${editorData.stats.linksProcessed} links analisados sem feedbacks de correção`
+                                            : 'Não há links do Frame.io para analisar'
+                                        }
+                                    </p>
+                                </div>
+                            )}
 
-                                {/* Expand icon */}
-                                {editor.totalErrors > 0 && (
-                                    isExpanded
-                                        ? <ChevronUp className="w-5 h-5 text-gray-500" />
-                                        : <ChevronDown className="w-5 h-5 text-gray-500" />
-                                )}
-                            </button>
-
-                            {/* Expanded error details */}
-                            {isExpanded && editor.totalErrors > 0 && (
-                                <div className="border-t border-gray-800 p-4 bg-gray-900/30">
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                                        {Object.entries(editor.errorPatterns)
-                                            .filter(([_, count]) => count > 0)
-                                            .sort((a, b) => b[1] - a[1])
-                                            .map(([cat, count]) => {
-                                                const Icon = CATEGORY_ICONS[cat as FeedbackCategory];
-                                                const colors = CATEGORY_COLORS[cat as FeedbackCategory];
-                                                const percentage = ((count / editor.totalErrors) * 100).toFixed(0);
-                                                return (
-                                                    <div
-                                                        key={cat}
-                                                        className={`flex flex-col items-center gap-1 p-3 rounded-lg border ${colors}`}
-                                                    >
-                                                        <Icon className="w-5 h-5" />
-                                                        <span className="text-xs text-center">{cat}</span>
-                                                        <span className="text-lg font-bold">{count}</span>
-                                                        <span className="text-xs opacity-60">{percentage}%</span>
+                            {/* Recent Comments */}
+                            {editorData.recentComments.length > 0 && (
+                                <div className="bg-[#12121a] border border-gray-800 rounded-xl p-4">
+                                    <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                                        <MessageSquare className="w-4 h-4" />
+                                        Últimos Feedbacks
+                                    </h4>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {editorData.recentComments.map((comment, idx) => {
+                                            const Icon = CATEGORY_ICONS[comment.category as FeedbackCategory] || HelpCircle;
+                                            const colors = CATEGORY_COLORS[comment.category as FeedbackCategory] || CATEGORY_COLORS['Outros'];
+                                            return (
+                                                <div key={idx} className="flex items-start gap-2 p-2 bg-gray-900/50 rounded-lg">
+                                                    <div className={`p-1.5 rounded ${colors} flex-shrink-0`}>
+                                                        <Icon className="w-3 h-3" />
                                                     </div>
-                                                );
-                                            })}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-gray-300 text-sm">{comment.text}</p>
+                                                        <p className="text-gray-600 text-xs mt-1 truncate">
+                                                            {comment.taskName} • {comment.timestamp}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
+
+                            {/* Info */}
+                            <div className="text-xs text-gray-600 text-center">
+                                {editorData.stats.linksProcessed} de {editorData.stats.totalFrameIoLinks} links analisados
+                            </div>
                         </div>
-                    );
-                })}
+                    )}
+                </div>
             </div>
 
             {/* Aguardando Alteração */}
@@ -386,9 +382,6 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
                                 </div>
                             );
                         })}
-                        {currentAlterationTasks.length > 5 && (
-                            <div className="text-gray-600">+{currentAlterationTasks.length - 5} mais</div>
-                        )}
                     </div>
                 </div>
             )}

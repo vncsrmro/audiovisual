@@ -438,4 +438,158 @@ export class ClickUpService {
     }
 }
 
+    /**
+     * Fetches time in status for a task to check if it passed through "alteração"
+     */
+    async fetchTaskHadAlteration(taskId: string): Promise<boolean> {
+        if (!this.apiKey) return false;
+
+        try {
+            const url = `${CLICKUP_API_URL}/task/${taskId}/time_in_status`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': this.apiKey,
+                    'Content-Type': 'application/json',
+                },
+                cache: 'no-store',
+            });
+
+            if (!response.ok) return false;
+
+            const data = await response.json();
+            const statusHistory = data.status_history || [];
+
+            return statusHistory.some((s: any) =>
+                (s.status || '').toLowerCase().includes('altera')
+            );
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Extracts all links (Frame.io and Google Docs) from a comment
+     */
+    private extractAllLinksFromComment(comment: any): { frameIoLinks: string[]; googleDocsLinks: string[] } {
+        const frameIoLinks: string[] = [];
+        const googleDocsLinks: string[] = [];
+        const frameIoPattern = /(?:frame\.io|f\.io)/i;
+        const googleDocsPattern = /docs\.google\.com/i;
+
+        const commentElements = comment.comment || [];
+
+        for (const element of commentElements) {
+            // Check bookmark type
+            if (element.type === 'bookmark' && element.bookmark?.url) {
+                const url = element.bookmark.url;
+                if (frameIoPattern.test(url)) {
+                    frameIoLinks.push(url);
+                } else if (googleDocsPattern.test(url)) {
+                    googleDocsLinks.push(url);
+                }
+            }
+
+            // Check link_mention type
+            if (element.type === 'link_mention' && element.link_mention?.url) {
+                const url = element.link_mention.url;
+                if (frameIoPattern.test(url)) {
+                    frameIoLinks.push(url);
+                } else if (googleDocsPattern.test(url)) {
+                    googleDocsLinks.push(url);
+                }
+            }
+        }
+
+        // Also check comment_text for plain text links
+        const commentText = comment.comment_text || '';
+        const plainLinkRegex = /(?:https?:\/\/)?(?:[\w-]+\.)?(?:frame\.io|f\.io|docs\.google\.com)\/[\w\-\/?=&#.]+/gi;
+        const textMatches = commentText.match(plainLinkRegex) || [];
+
+        for (const match of textMatches) {
+            const fullUrl = match.startsWith('http') ? match : `https://${match}`;
+            if (frameIoPattern.test(fullUrl) && !frameIoLinks.includes(fullUrl)) {
+                frameIoLinks.push(fullUrl);
+            } else if (googleDocsPattern.test(fullUrl) && !googleDocsLinks.includes(fullUrl)) {
+                googleDocsLinks.push(fullUrl);
+            }
+        }
+
+        return { frameIoLinks, googleDocsLinks };
+    }
+
+    /**
+     * Fetches completed/approved tasks and checks which ones had alterations
+     * Returns detailed feedback data for the Feedbacks Audit page
+     */
+    async fetchFeedbackAuditData(tasks: ClickUpTask[]): Promise<{
+        task: ClickUpTask;
+        hadAlteration: boolean;
+        frameIoLinks: string[];
+        googleDocsLinks: string[];
+        comments: any[];
+    }[]> {
+        const results: {
+            task: ClickUpTask;
+            hadAlteration: boolean;
+            frameIoLinks: string[];
+            googleDocsLinks: string[];
+            comments: any[];
+        }[] = [];
+
+        // Filter only completed tasks (approved or concluded)
+        const completedTasks = tasks.filter(task => {
+            const status = (task.status.status || '').toLowerCase();
+            return status.includes('aprovado') || status.includes('conclu');
+        });
+
+        console.log(`[ClickUp] Checking ${completedTasks.length} completed tasks for alterations...`);
+
+        // Process in batches
+        const batchSize = 5;
+        for (let i = 0; i < Math.min(completedTasks.length, 100); i += batchSize) {
+            const batch = completedTasks.slice(i, i + batchSize);
+
+            const promises = batch.map(async (task) => {
+                // Check if task had alteration
+                const hadAlteration = await this.fetchTaskHadAlteration(task.id);
+
+                // Fetch comments
+                const comments = await this.fetchTaskComments(task.id);
+
+                // Extract all links
+                const allFrameIoLinks: string[] = [];
+                const allGoogleDocsLinks: string[] = [];
+
+                for (const comment of comments) {
+                    const { frameIoLinks, googleDocsLinks } = this.extractAllLinksFromComment(comment);
+                    allFrameIoLinks.push(...frameIoLinks);
+                    allGoogleDocsLinks.push(...googleDocsLinks);
+                }
+
+                return {
+                    task,
+                    hadAlteration,
+                    frameIoLinks: [...new Set(allFrameIoLinks)],
+                    googleDocsLinks: [...new Set(allGoogleDocsLinks)],
+                    comments
+                };
+            });
+
+            const batchResults = await Promise.all(promises);
+            results.push(...batchResults);
+
+            // Rate limiting
+            if (i + batchSize < completedTasks.length) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+
+        const withAlteration = results.filter(r => r.hadAlteration).length;
+        console.log(`[ClickUp] Tasks with alteration history: ${withAlteration}/${results.length}`);
+
+        return results;
+    }
+}
+
 export const clickupService = new ClickUpService();

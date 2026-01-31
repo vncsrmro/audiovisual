@@ -1,35 +1,42 @@
 import { clickupService } from '@/lib/clickup.service';
 import { FeedbacksView } from './feedbacks-view';
+import { AUDIOVISUAL_TEAM_IDS } from '@/lib/constants';
 
 export const revalidate = 300;
 export const maxDuration = 60;
 
 export default async function FeedbacksPage() {
     // Fetch all tasks from editors
-    const tasks = await clickupService.fetchTasks();
+    const allTasks = await clickupService.fetchTasks();
 
-    // Filter only tasks with "ALTERAÇÃO" status
-    const tasksWithAlteration = tasks.filter(task => {
+    // Filter only tasks from audiovisual editors
+    const audiovisualTasks = allTasks.filter(task =>
+        task.assignees?.some(a => AUDIOVISUAL_TEAM_IDS.includes(a.id))
+    );
+
+    console.log(`[Feedbacks] Total tasks: ${allTasks.length}, Audiovisual: ${audiovisualTasks.length}`);
+
+    // Fetch feedback audit data (includes alteration history and links)
+    const feedbackData = await clickupService.fetchFeedbackAuditData(audiovisualTasks);
+
+    // Also get tasks currently in "ALTERAÇÃO" status
+    const tasksInAlteration = audiovisualTasks.filter(task => {
         const statusUpper = task.status.status.toUpperCase();
         return statusUpper.includes('ALTERA');
     });
 
-    console.log(`[Feedbacks] Total tasks: ${tasks.length}, With Alteração: ${tasksWithAlteration.length}`);
+    // Fetch Frame.io links for tasks currently in alteration
+    const currentAlterationData = await clickupService.fetchTasksWithFrameIoLinks(tasksInAlteration.slice(0, 20));
 
-    // Fetch comments for these tasks to find Frame.io links
-    // Limit to first 50 tasks to avoid timeout
-    const tasksToCheck = tasksWithAlteration.slice(0, 50);
-    const tasksWithFrameIo = await clickupService.fetchTasksWithFrameIoLinks(tasksToCheck);
-
-    // Filter only tasks that have Frame.io links
-    const tasksWithLinks = tasksWithFrameIo.filter(t => t.frameIoLinks.length > 0);
-
-    console.log(`[Feedbacks] Tasks with Frame.io links: ${tasksWithLinks.length}`);
+    console.log(`[Feedbacks] Completed tasks analyzed: ${feedbackData.length}`);
+    console.log(`[Feedbacks] With alteration history: ${feedbackData.filter(t => t.hadAlteration).length}`);
+    console.log(`[Feedbacks] Currently in alteration: ${tasksInAlteration.length}`);
 
     return (
         <FeedbacksView
-            tasks={tasks}
-            tasksWithFrameIo={tasksWithLinks}
+            tasks={audiovisualTasks}
+            feedbackData={feedbackData}
+            currentAlterationTasks={currentAlterationData}
             lastUpdated={Date.now()}
         />
     );

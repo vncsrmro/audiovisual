@@ -660,22 +660,234 @@ export function RelatoriosView({ kpis, allVideos, lastUpdated }: RelatoriosViewP
                                 </div>
                             )}
 
-                            {/* Alerts */}
-                            {reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 35).length > 0 && (
-                                <div className="mb-8 p-4 bg-red-50 rounded-lg border border-red-200">
-                                    <h3 className="text-red-700 font-bold flex items-center gap-2 mb-2">
-                                        <AlertCircle className="w-5 h-5" />
-                                        Alertas de Qualidade
+                            {/* ==================== SEÇÃO "O QUE COBRAR/APRIMORAR" ==================== */}
+                            <div className="mb-8 page-break-before">
+                                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <AlertCircle className={`w-5 h-5 ${reportData.color === 'purple' ? 'text-purple-600' : reportData.color === 'blue' ? 'text-blue-600' : reportData.color === 'green' ? 'text-green-600' : 'text-amber-600'}`} />
+                                    O que Cobrar / Aprimorar
+                                </h2>
+                                <p className="text-gray-500 text-sm mb-4 italic">
+                                    Resumo executivo para gestão: pontos críticos, comparativos e ações recomendadas
+                                </p>
+
+                                {/* Editores Críticos (> 35%) */}
+                                {(() => {
+                                    const critical = reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 35);
+                                    if (critical.length === 0) return null;
+                                    return (
+                                        <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                                            <h3 className="text-red-700 font-bold flex items-center gap-2 mb-3">
+                                                <span className="text-lg">🔴</span>
+                                                Crítico - Taxa de Alteração acima de 35%
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {critical.map(editor => (
+                                                    <div key={editor.name} className="flex justify-between items-center bg-white p-3 rounded border border-red-100">
+                                                        <div>
+                                                            <span className="font-bold text-red-700">{editor.name}</span>
+                                                            <span className="text-gray-500 text-sm ml-2">({editor.teamName})</span>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-red-700 font-bold text-lg">{editor.alterationRate}%</span>
+                                                            <span className="text-gray-500 text-sm ml-2">({editor.videos} vídeos)</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 pt-3 border-t border-red-200">
+                                                <p className="text-red-800 text-sm font-medium">💡 Ação Recomendada:</p>
+                                                <ul className="text-red-700 text-sm mt-1 space-y-1">
+                                                    <li>• Agendar conversa individual esta semana para entender causas</li>
+                                                    <li>• Revisar últimos vídeos para identificar padrão de erro</li>
+                                                    <li>• Considerar treinamento específico ou mentoria</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Editores em Atenção (20-35%) */}
+                                {(() => {
+                                    const attention = reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 20 && e.alterationRate < 35);
+                                    if (attention.length === 0) return null;
+                                    return (
+                                        <div className="mb-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                            <h3 className="text-amber-700 font-bold flex items-center gap-2 mb-3">
+                                                <span className="text-lg">🟡</span>
+                                                Atenção - Taxa de Alteração entre 20-35%
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {attention.map(editor => (
+                                                    <div key={editor.name} className="flex justify-between items-center bg-white p-3 rounded border border-amber-100">
+                                                        <div>
+                                                            <span className="font-bold text-amber-700">{editor.name}</span>
+                                                            <span className="text-gray-500 text-sm ml-2">({editor.teamName})</span>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-amber-700 font-bold text-lg">{editor.alterationRate}%</span>
+                                                            <span className="text-gray-500 text-sm ml-2">({editor.videos} vídeos)</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 pt-3 border-t border-amber-200">
+                                                <p className="text-amber-800 text-sm font-medium">💡 Ação Recomendada:</p>
+                                                <ul className="text-amber-700 text-sm mt-1 space-y-1">
+                                                    <li>• Monitorar nas próximas 2 semanas</li>
+                                                    <li>• Incluir no próximo 1:1 para feedback preventivo</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Comparativo com período anterior */}
+                                {(() => {
+                                    // Calculate comparison metrics for each editor
+                                    const comparisonData = reportData.metrics.editorMetrics.map(editor => {
+                                        // Try to find comparison data (simplified - in real world we'd need historical data)
+                                        const volumeVariation = reportData.metrics.comparisonTotalVideos > 0
+                                            ? ((reportData.metrics.totalVideos - reportData.metrics.comparisonTotalVideos) / reportData.metrics.comparisonTotalVideos * 100)
+                                            : 0;
+                                        return {
+                                            ...editor,
+                                            volumeVariation
+                                        };
+                                    });
+
+                                    const improved = comparisonData.filter(e => e.alterationRate < 20);
+                                    const worsened = comparisonData.filter(e => e.alterationRate >= 35);
+
+                                    return (
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            {/* O que Melhorou */}
+                                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                                                <h3 className="text-green-700 font-bold flex items-center gap-2 mb-3">
+                                                    <span className="text-lg">📈</span>
+                                                    Destaques Positivos
+                                                </h3>
+                                                {improved.length > 0 ? (
+                                                    <ul className="text-green-700 text-sm space-y-1">
+                                                        {improved.slice(0, 3).map(editor => (
+                                                            <li key={editor.name}>
+                                                                ✓ <strong>{editor.name}</strong>: {editor.alterationRate}% alteração ({editor.videos} vídeos)
+                                                            </li>
+                                                        ))}
+                                                        {reportData.metrics.totalVideos > reportData.metrics.comparisonTotalVideos && (
+                                                            <li className="mt-2 pt-2 border-t border-green-200">
+                                                                ✓ Volume aumentou: {reportData.metrics.totalVideos} vs {reportData.metrics.comparisonTotalVideos} ({reportData.comparisonLabel})
+                                                            </li>
+                                                        )}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="text-gray-500 text-sm italic">Nenhum destaque positivo no período</p>
+                                                )}
+                                            </div>
+
+                                            {/* O que Piorou */}
+                                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                                                <h3 className="text-red-700 font-bold flex items-center gap-2 mb-3">
+                                                    <span className="text-lg">📉</span>
+                                                    Pontos de Atenção
+                                                </h3>
+                                                {worsened.length > 0 || reportData.metrics.totalVideos < reportData.metrics.comparisonTotalVideos ? (
+                                                    <ul className="text-red-700 text-sm space-y-1">
+                                                        {worsened.slice(0, 3).map(editor => (
+                                                            <li key={editor.name}>
+                                                                ✗ <strong>{editor.name}</strong>: {editor.alterationRate}% alteração
+                                                            </li>
+                                                        ))}
+                                                        {reportData.metrics.totalVideos < reportData.metrics.comparisonTotalVideos && (
+                                                            <li className="mt-2 pt-2 border-t border-red-200">
+                                                                ✗ Volume reduziu: {reportData.metrics.totalVideos} vs {reportData.metrics.comparisonTotalVideos} ({reportData.comparisonLabel})
+                                                            </li>
+                                                        )}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="text-green-600 text-sm">Nenhum ponto crítico identificado!</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Resumo Executivo de Ações */}
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h3 className="text-blue-700 font-bold flex items-center gap-2 mb-3">
+                                        <span className="text-lg">📋</span>
+                                        Resumo de Ações para o Gestor
                                     </h3>
-                                    <ul className="text-red-600 text-sm space-y-1">
-                                        {reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 35).map(editor => (
-                                            <li key={editor.name}>
-                                                • <strong>{editor.name}</strong> ({editor.teamName}) - taxa de alteração de {editor.alterationRate}% (acima do limite de 35%)
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="grid grid-cols-1 gap-2 text-sm">
+                                        {(() => {
+                                            const actions: { priority: string; action: string; who: string }[] = [];
+
+                                            // Critical editors
+                                            const critical = reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 35);
+                                            critical.forEach(e => {
+                                                actions.push({
+                                                    priority: '🔴 URGENTE',
+                                                    action: `Conversa individual sobre qualidade`,
+                                                    who: e.name
+                                                });
+                                            });
+
+                                            // Attention editors
+                                            const attention = reportData.metrics.editorMetrics.filter(e => e.alterationRate >= 20 && e.alterationRate < 35);
+                                            attention.forEach(e => {
+                                                actions.push({
+                                                    priority: '🟡 IMPORTANTE',
+                                                    action: `Feedback no próximo 1:1`,
+                                                    who: e.name
+                                                });
+                                            });
+
+                                            // Volume drop
+                                            if (reportData.metrics.totalVideos < reportData.metrics.comparisonTotalVideos) {
+                                                actions.push({
+                                                    priority: '🟡 IMPORTANTE',
+                                                    action: `Investigar queda de volume`,
+                                                    who: 'Equipe geral'
+                                                });
+                                            }
+
+                                            // Celebrate wins
+                                            const excellent = reportData.metrics.editorMetrics.filter(e => e.alterationRate < 10 && e.videos >= 3);
+                                            excellent.forEach(e => {
+                                                actions.push({
+                                                    priority: '✅ POSITIVO',
+                                                    action: `Reconhecer excelente performance`,
+                                                    who: e.name
+                                                });
+                                            });
+
+                                            if (actions.length === 0) {
+                                                return <p className="text-gray-500 italic">Nenhuma ação urgente necessária</p>;
+                                            }
+
+                                            return (
+                                                <table className="w-full">
+                                                    <thead>
+                                                        <tr className="text-left text-blue-800">
+                                                            <th className="pb-2">Prioridade</th>
+                                                            <th className="pb-2">Ação</th>
+                                                            <th className="pb-2">Quem</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {actions.map((action, idx) => (
+                                                            <tr key={idx} className="border-t border-blue-100">
+                                                                <td className="py-2 font-medium">{action.priority}</td>
+                                                                <td className="py-2">{action.action}</td>
+                                                                <td className="py-2 font-medium">{action.who}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
-                            )}
+                            </div>
 
                             {/* Footer */}
                             <div className="text-center pt-6 border-t text-gray-400 text-sm">

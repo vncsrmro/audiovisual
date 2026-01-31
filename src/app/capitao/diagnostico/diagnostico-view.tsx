@@ -15,7 +15,10 @@ import {
     Video,
     Users,
     Target,
-    Zap
+    Zap,
+    Trophy,
+    Star,
+    Award
 } from 'lucide-react';
 
 interface DiagnosticoViewProps {
@@ -152,6 +155,113 @@ export function DiagnosticoView({
     const totalLastWeek = lastWeekVideos.length;
     const weeklyChange = totalLastWeek > 0 ? ((totalThisWeek - totalLastWeek) / totalLastWeek) * 100 : 0;
 
+    // ==================== CONQUISTAS DO SETOR ====================
+    interface Achievement {
+        title: string;
+        description: string;
+        icon: 'trophy' | 'star' | 'award';
+        type: 'volume' | 'quality' | 'individual';
+    }
+
+    const achievements: Achievement[] = [];
+
+    // Volume achievements
+    if (weeklyChange > 10) {
+        achievements.push({
+            title: 'Volume em Alta!',
+            description: `Aumento de ${weeklyChange.toFixed(0)}% em entregas esta semana`,
+            icon: 'trophy',
+            type: 'volume'
+        });
+    }
+
+    if (totalThisWeek > 30) {
+        achievements.push({
+            title: 'Semana Produtiva!',
+            description: `${totalThisWeek} vídeos entregues esta semana`,
+            icon: 'star',
+            type: 'volume'
+        });
+    }
+
+    // Quality achievements
+    if (avgAlterationRate < 15) {
+        achievements.push({
+            title: 'Qualidade Excelente!',
+            description: `Taxa de alteração em ${avgAlterationRate.toFixed(1)}% - abaixo de 15%`,
+            icon: 'trophy',
+            type: 'quality'
+        });
+    } else if (avgAlterationRate < 25) {
+        achievements.push({
+            title: 'Qualidade Boa!',
+            description: `Taxa de alteração em ${avgAlterationRate.toFixed(1)}% - dentro da meta`,
+            icon: 'star',
+            type: 'quality'
+        });
+    }
+
+    // Team achievements
+    teamMetrics.forEach(team => {
+        if (team.alterationRate === 0 && team.videosThisWeek >= 3) {
+            achievements.push({
+                title: `${team.teamName} Perfeito!`,
+                description: `0% de alteração com ${team.videosThisWeek} vídeos`,
+                icon: 'award',
+                type: 'individual'
+            });
+        }
+    });
+
+    // Individual editor achievements
+    kpis.editors.forEach(editor => {
+        const alterationRate = editor.phaseMetrics?.alterationRate || 0;
+        const videos = editor.totalVideos || 0;
+
+        if (alterationRate === 0 && videos >= 5) {
+            achievements.push({
+                title: `${editor.editorName} Impecável!`,
+                description: `0% alteração com ${videos} vídeos no período`,
+                icon: 'star',
+                type: 'individual'
+            });
+        }
+    });
+
+    // Best performers
+    const sortedByQuality = [...kpis.editors]
+        .filter(e => (e.totalVideos || 0) >= 3)
+        .sort((a, b) => (a.phaseMetrics?.alterationRate || 0) - (b.phaseMetrics?.alterationRate || 0));
+
+    if (sortedByQuality.length > 0 && (sortedByQuality[0].phaseMetrics?.alterationRate || 0) < 10) {
+        achievements.push({
+            title: 'Destaque de Qualidade',
+            description: `${sortedByQuality[0].editorName} com apenas ${sortedByQuality[0].phaseMetrics?.alterationRate.toFixed(1)}% de alteração`,
+            icon: 'award',
+            type: 'individual'
+        });
+    }
+
+    const sortedByVolume = [...kpis.editors]
+        .sort((a, b) => (b.totalVideos || 0) - (a.totalVideos || 0));
+
+    if (sortedByVolume.length > 0 && (sortedByVolume[0].totalVideos || 0) >= 10) {
+        achievements.push({
+            title: 'Maior Volume',
+            description: `${sortedByVolume[0].editorName} entregou ${sortedByVolume[0].totalVideos} vídeos`,
+            icon: 'trophy',
+            type: 'individual'
+        });
+    }
+
+    const getAchievementIcon = (icon: 'trophy' | 'star' | 'award') => {
+        switch (icon) {
+            case 'trophy': return <Trophy className="w-5 h-5 text-yellow-400" />;
+            case 'star': return <Star className="w-5 h-5 text-yellow-400" />;
+            case 'award': return <Award className="w-5 h-5 text-yellow-400" />;
+        }
+    };
+
     return (
         <div className="p-8 space-y-8">
             {/* Header */}
@@ -226,6 +336,35 @@ export function DiagnosticoView({
                     </div>
                 </div>
             </div>
+
+            {/* Achievements Section - Conquistas do Setor */}
+            {achievements.length > 0 && (
+                <div className="bg-gradient-to-r from-yellow-950/30 to-amber-950/30 border border-yellow-900/50 rounded-xl p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Trophy className="w-5 h-5 text-yellow-400" />
+                        <h2 className="text-lg font-semibold text-yellow-400">Conquistas do Setor</h2>
+                        <span className="ml-auto text-xs text-yellow-600 bg-yellow-900/30 px-2 py-1 rounded">
+                            {achievements.length} conquista{achievements.length > 1 ? 's' : ''}
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        {achievements.slice(0, 6).map((achievement, idx) => (
+                            <div
+                                key={idx}
+                                className="bg-[#12121a] border border-yellow-900/30 rounded-lg p-4 flex items-start gap-3"
+                            >
+                                <div className="w-10 h-10 rounded-lg bg-yellow-600/20 flex items-center justify-center flex-shrink-0">
+                                    {getAchievementIcon(achievement.icon)}
+                                </div>
+                                <div>
+                                    <p className="text-white font-medium text-sm">{achievement.title}</p>
+                                    <p className="text-yellow-400/70 text-xs mt-1">{achievement.description}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Alerts Section */}
             {alerts.length > 0 && (

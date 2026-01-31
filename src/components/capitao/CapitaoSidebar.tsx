@@ -8,7 +8,9 @@ import {
     MessageSquare,
     FileText,
     Anchor,
-    Target
+    Target,
+    UserCheck,
+    BarChart3
 } from 'lucide-react';
 
 const navItems = [
@@ -41,6 +43,18 @@ const navItems = [
         href: '/capitao/relatorios',
         icon: FileText,
         description: 'PDFs'
+    },
+    {
+        label: '1:1 Mensal',
+        href: '/capitao/one-on-one',
+        icon: UserCheck,
+        description: 'Checklist de conversas'
+    },
+    {
+        label: 'Evolução do Setor',
+        href: '/capitao/evolucao-setor',
+        icon: BarChart3,
+        description: 'Tendências e gráficos'
     },
 ];
 

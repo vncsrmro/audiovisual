@@ -21,6 +21,7 @@ import {
     BarChart3,
     Award
 } from 'lucide-react';
+import { XMXLogoText } from '@/components/xmx-logo';
 
 interface RelatoriosViewProps {
     kpis: DashboardKPIs;
@@ -433,13 +434,22 @@ export function RelatoriosView({ kpis, allVideos, lastUpdated }: RelatoriosViewP
 
                         {/* Report Content */}
                         <div className="p-8 print:p-6" id="report-content">
-                            {/* Header */}
-                            <div className={`text-center mb-8 pb-6 border-b-2 ${colorClasses[reportData.color].headerBg}`}>
-                                <h1 className={`text-3xl font-bold ${reportData.color === 'purple' ? 'text-purple-600' : reportData.color === 'blue' ? 'text-blue-600' : reportData.color === 'green' ? 'text-green-600' : 'text-amber-600'}`}>
-                                    {reportData.title}
-                                </h1>
-                                <p className="text-gray-500 mt-2 text-lg">{reportData.subtitle}</p>
-                                <p className="text-gray-400 text-sm mt-1">Gerado em {new Date().toLocaleString('pt-BR')}</p>
+                            {/* Header with Logo */}
+                            <div className={`mb-8 pb-6 border-b-2 ${colorClasses[reportData.color].headerBg}`}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <XMXLogoText className="scale-125 origin-left" />
+                                    <div className="text-right text-sm text-gray-400">
+                                        <p>Setor de Vídeo</p>
+                                        <p>{new Date().toLocaleDateString('pt-BR')}</p>
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <h1 className={`text-3xl font-bold ${reportData.color === 'purple' ? 'text-purple-600' : reportData.color === 'blue' ? 'text-blue-600' : reportData.color === 'green' ? 'text-green-600' : 'text-amber-600'}`}>
+                                        {reportData.title}
+                                    </h1>
+                                    <p className="text-gray-500 mt-2 text-lg">{reportData.subtitle}</p>
+                                    <p className="text-gray-400 text-sm mt-1">Gerado em {new Date().toLocaleString('pt-BR')}</p>
+                                </div>
                             </div>
 
                             {/* Summary */}

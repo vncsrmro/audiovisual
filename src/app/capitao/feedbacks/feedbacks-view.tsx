@@ -111,7 +111,7 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
         if (!assignee) return;
 
         const member = getMemberById(assignee.id);
-        const editorId = assignee.id;
+        const editorId = String(assignee.id);
         const editorName = member?.name || assignee.username;
         const editorColor = member?.color || '#6b7280';
 

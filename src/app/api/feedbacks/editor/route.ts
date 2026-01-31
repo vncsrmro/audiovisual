@@ -18,13 +18,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'BROWSERLESS_API_KEY not configured' }, { status: 500 });
         }
 
-        const member = getMemberById(editorId);
-        console.log(`[Editor Feedback] Fetching for: ${member?.name || editorId}`);
+        // Convert to number for comparison (ClickUp IDs are numbers)
+        const editorIdNum = Number(editorId);
+        const member = getMemberById(editorIdNum);
+        console.log(`[Editor Feedback] Fetching for: ${member?.name || editorId} (ID: ${editorIdNum})`);
 
         // Fetch tasks
         const allTasks = await clickupService.fetchTasks();
         const editorTasks = allTasks.filter(task =>
-            task.assignees?.some(a => a.id === editorId)
+            task.assignees?.some(a => a.id === editorIdNum)
         );
 
         console.log(`[Editor Feedback] Found ${editorTasks.length} tasks for editor`);
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             editor: {
-                id: editorId,
+                id: editorIdNum,
                 name: member?.name || 'Unknown',
                 color: member?.color || '#666'
             },

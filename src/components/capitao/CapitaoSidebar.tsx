@@ -7,10 +7,17 @@ import {
     TrendingUp,
     MessageSquare,
     FileText,
-    Anchor
+    Anchor,
+    Target
 } from 'lucide-react';
 
 const navItems = [
+    {
+        label: 'Insights',
+        href: '/capitao/insights',
+        icon: Target,
+        description: 'Quem precisa de ajuda'
+    },
     {
         label: 'Diagnóstico',
         href: '/capitao/diagnostico',

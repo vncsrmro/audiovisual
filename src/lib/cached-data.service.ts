@@ -6,6 +6,7 @@
 import { clickupService } from './clickup.service';
 import { dataService } from './data-service';
 import { timeTrackingService } from './time-tracking.service';
+import { calculateAllInsights, InsightsData } from './insights.service';
 import { ClickUpTask, TaskPhaseTime, NormalizedTask, DashboardKPIs } from '@/types';
 import { AUDIOVISUAL_TEAM_IDS } from './constants';
 
@@ -200,5 +201,55 @@ export function getCacheStatus() {
         cached: true,
         age: Math.round((Date.now() - cachedData.timestamp) / 1000),
         tasksCount: cachedData.tasks.length
+    };
+}
+
+/**
+ * Gets data for Insights page
+ * Analyzes editors who need help based on alteration rate, error patterns, and trends
+ */
+export async function getInsightsData(): Promise<InsightsData> {
+    const data = await getCachedDashboardData();
+
+    const now = new Date();
+
+    // Período atual: últimas 2 semanas
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(now.getDate() - 14);
+    twoWeeksAgo.setHours(0, 0, 0, 0);
+
+    // Período anterior: 2 semanas antes disso
+    const fourWeeksAgo = new Date(twoWeeksAgo);
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 14);
+
+    // Helper para pegar data efetiva (dateClosed ou dateCreated para completed)
+    const getEffectiveDate = (v: NormalizedTask): number | null => {
+        if (v.dateClosed) return v.dateClosed;
+        if (v.status === 'COMPLETED') return v.dateCreated;
+        return null;
+    };
+
+    // Filtrar vídeos completados do período atual
+    const currentVideos = data.normalized.filter(v => {
+        if (v.status !== 'COMPLETED') return false;
+        const date = getEffectiveDate(v);
+        return date && date >= twoWeeksAgo.getTime();
+    });
+
+    // Filtrar vídeos completados do período anterior (para comparação)
+    const previousVideos = data.normalized.filter(v => {
+        if (v.status !== 'COMPLETED') return false;
+        const date = getEffectiveDate(v);
+        return date && date >= fourWeeksAgo.getTime() && date < twoWeeksAgo.getTime();
+    });
+
+    console.log(`[Insights] Current period: ${currentVideos.length} videos, Previous: ${previousVideos.length} videos`);
+
+    // Calcular insights (sem feedbacks do Frame.io por enquanto - será adicionado depois)
+    const insights = calculateAllInsights(currentVideos, previousVideos);
+
+    return {
+        ...insights,
+        lastUpdated: data.timestamp
     };
 }

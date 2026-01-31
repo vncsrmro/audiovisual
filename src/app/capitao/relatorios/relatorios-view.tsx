@@ -124,17 +124,52 @@ export function RelatoriosView({ kpis, allVideos, lastUpdated }: RelatoriosViewP
     const endOfLastQuarter = new Date(now.getFullYear(), currentQuarter * 3, 0);
 
     // ========== VIDEO FILTERS ==========
-    const thisWeekVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfWeek.getTime());
-    const lastWeekVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfLastWeek.getTime() && v.dateClosed < startOfWeek.getTime());
+    // Helper: get effective date (dateClosed if available, otherwise dateCreated for completed tasks)
+    const getEffectiveDate = (v: NormalizedTask): number | null => {
+        if (v.dateClosed) return v.dateClosed;
+        // For completed tasks without dateClosed, use dateCreated as fallback
+        if (v.status === 'COMPLETED') return v.dateCreated;
+        return null;
+    };
 
-    const thisMonthVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfMonth.getTime());
-    const lastMonthVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfLastMonth.getTime() && v.dateClosed <= endOfLastMonth.getTime());
+    // Filter completed videos only for reports
+    const completedVideos = allVideos.filter(v => v.status === 'COMPLETED');
 
-    const thisBimesterVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfBimester.getTime());
-    const lastBimesterVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfPreviousBimester.getTime() && v.dateClosed <= endOfPreviousBimester.getTime());
+    const thisWeekVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfWeek.getTime();
+    });
+    const lastWeekVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfLastWeek.getTime() && date < startOfWeek.getTime();
+    });
 
-    const thisQuarterVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfQuarter.getTime());
-    const lastQuarterVideos = allVideos.filter(v => v.dateClosed && v.dateClosed >= startOfLastQuarter.getTime() && v.dateClosed <= endOfLastQuarter.getTime());
+    const thisMonthVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfMonth.getTime();
+    });
+    const lastMonthVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfLastMonth.getTime() && date <= endOfLastMonth.getTime();
+    });
+
+    const thisBimesterVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfBimester.getTime();
+    });
+    const lastBimesterVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfPreviousBimester.getTime() && date <= endOfPreviousBimester.getTime();
+    });
+
+    const thisQuarterVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfQuarter.getTime();
+    });
+    const lastQuarterVideos = completedVideos.filter(v => {
+        const date = getEffectiveDate(v);
+        return date && date >= startOfLastQuarter.getTime() && date <= endOfLastQuarter.getTime();
+    });
 
     // ========== HELPER: Calculate metrics for a set of videos ==========
     const calculateMetrics = (videos: NormalizedTask[], comparisonVideos: NormalizedTask[]) => {
@@ -351,8 +386,8 @@ export function RelatoriosView({ kpis, allVideos, lastUpdated }: RelatoriosViewP
                                 <Award className="w-6 h-6 text-amber-400" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-sm">Total Geral</p>
-                                <p className="text-2xl font-bold text-white">{allVideos.length}</p>
+                                <p className="text-gray-400 text-sm">Total Concluídos</p>
+                                <p className="text-2xl font-bold text-white">{completedVideos.length}</p>
                             </div>
                         </div>
                     </div>

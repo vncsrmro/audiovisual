@@ -105,10 +105,9 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
             if (data.success) {
                 setUpdateResult({
                     success: true,
-                    message: `${data.stats.commentsExtracted} feedbacks extraídos de ${data.stats.frameIoUrls} links`
+                    message: data.message || `${data.stats?.commentsExtracted || 0} feedbacks extraídos`
                 });
-                // Reload page after 2 seconds to show updated data
-                setTimeout(() => window.location.reload(), 2000);
+                // Don't reload - show results in the message
             } else {
                 setUpdateResult({ success: false, message: data.error || 'Erro ao atualizar' });
             }

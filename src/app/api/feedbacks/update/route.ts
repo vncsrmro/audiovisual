@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
+import { clickupService } from '@/lib/clickup.service';
+import { AUDIOVISUAL_TEAM_IDS } from '@/lib/constants';
 import { extractFrameIoComments, categorizeComment } from '@/lib/frameio-api.service';
 
 export const maxDuration = 60;
 
-// Hardcoded Frame.io links for testing - these are from tasks with alterations
-const KNOWN_FRAMEIO_LINKS = [
-    'https://f.io/65KiOiBh',  // Task 86aeueh4h - Victor Mazzine
-];
-
 export async function POST() {
     try {
         console.log('[Feedbacks Update] Starting extraction...');
-        console.log(`[Feedbacks Update] BROWSERLESS_API_KEY: ${!!process.env.BROWSERLESS_API_KEY}`);
 
         if (!process.env.BROWSERLESS_API_KEY) {
             return NextResponse.json({
@@ -20,32 +16,50 @@ export async function POST() {
             }, { status: 500 });
         }
 
-        // Extract from just one link to test
-        const url = KNOWN_FRAMEIO_LINKS[0];
-        console.log(`[Feedbacks Update] Extracting from: ${url}`);
+        // Fetch tasks to get Frame.io links
+        const allTasks = await clickupService.fetchTasks();
+        const audiovisualTasks = allTasks.filter(task =>
+            task.assignees?.some(a => AUDIOVISUAL_TEAM_IDS.includes(a.id))
+        );
 
-        const feedback = await extractFrameIoComments(url);
+        const taskIds = audiovisualTasks.map(t => t.id);
+        const phaseTimeMap = await clickupService.fetchPhaseTimeForTasks(taskIds);
+        const feedbackData = await clickupService.fetchFeedbackAuditDataOptimized(audiovisualTasks, phaseTimeMap);
 
-        console.log(`[Feedbacks Update] Result:`, {
-            url: feedback.url,
-            assetName: feedback.assetName,
-            commentsCount: feedback.comments.length,
-            error: feedback.error
-        });
+        // Get Frame.io links
+        const tasksWithAlteration = feedbackData.filter(d => d.hadAlteration && d.frameIoLinks.length > 0);
+        const allFrameIoUrls = [...new Set(tasksWithAlteration.flatMap(d => d.frameIoLinks))];
 
-        // Categorize comments
-        const categorizedComments = feedback.comments.map(c => ({
-            ...c,
-            category: categorizeComment(c.text)
-        }));
+        console.log(`[Feedbacks Update] Found ${allFrameIoUrls.length} Frame.io URLs`);
+
+        // Extract comments from first 2 links only (to avoid timeout)
+        const urlsToProcess = allFrameIoUrls.slice(0, 2);
+        const results = [];
+
+        for (const url of urlsToProcess) {
+            console.log(`[Feedbacks Update] Extracting: ${url}`);
+            const feedback = await extractFrameIoComments(url);
+            results.push({
+                url,
+                comments: feedback.comments.map(c => ({
+                    ...c,
+                    category: categorizeComment(c.text)
+                })),
+                error: feedback.error
+            });
+        }
+
+        const totalComments = results.reduce((acc, r) => acc + r.comments.length, 0);
 
         return NextResponse.json({
             success: true,
-            url: feedback.url,
-            assetName: feedback.assetName,
-            commentsCount: feedback.comments.length,
-            comments: categorizedComments,
-            error: feedback.error
+            stats: {
+                totalUrls: allFrameIoUrls.length,
+                processedUrls: urlsToProcess.length,
+                commentsExtracted: totalComments
+            },
+            results,
+            message: `${totalComments} feedbacks extraídos de ${urlsToProcess.length} links`
         });
 
     } catch (error) {

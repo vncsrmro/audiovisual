@@ -162,19 +162,24 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
 
         try {
             // Get Frame.io links from this editor's tasks with alterations
-            const editorIdNum = Number(editorId);
+            // Use string comparison to ensure match (editorId comes as string)
             const editorTasksData = feedbackData.filter(data => {
                 const assignee = data.task.assignees?.[0];
-                return assignee && assignee.id === editorIdNum;
+                return assignee && String(assignee.id) === editorId;
             });
 
+            console.log(`[FeedbacksView] Editor ${editorId}: found ${editorTasksData.length} tasks`);
+
             const tasksWithAlteration = editorTasksData.filter(d => d.hadAlteration && d.frameIoLinks.length > 0);
+            console.log(`[FeedbacksView] Tasks with alteration and Frame.io links: ${tasksWithAlteration.length}`);
+
             const frameIoLinks = tasksWithAlteration.flatMap(d =>
                 d.frameIoLinks.map(url => ({
                     url,
                     taskName: d.task.name
                 }))
             );
+            console.log(`[FeedbacksView] Frame.io links to process:`, frameIoLinks);
 
             const editorInfo = editorStatsMap[editorId];
 

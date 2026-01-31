@@ -61,8 +61,9 @@ async function resolveFrameIoUrl(shortUrl: string): Promise<{ shareId: string; a
 
 /**
  * Extracts comments using Browserless.io (serverless Puppeteer)
+ * With individual timeout to prevent blocking other requests
  */
-export async function extractFrameIoComments(frameIoUrl: string): Promise<FrameIoFeedback> {
+export async function extractFrameIoComments(frameIoUrl: string, timeoutMs: number = 30000): Promise<FrameIoFeedback> {
     const browserlessApiKey = process.env.BROWSERLESS_API_KEY;
 
     if (!browserlessApiKey) {
@@ -83,6 +84,10 @@ export async function extractFrameIoComments(frameIoUrl: string): Promise<FrameI
 
         console.log(`[Frame.io] Extracting comments from: ${url}`);
 
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         // Use Browserless scrape API
         const response = await fetch(`https://chrome.browserless.io/scrape?token=${browserlessApiKey}`, {
             method: 'POST',
@@ -98,10 +103,13 @@ export async function extractFrameIoComments(frameIoUrl: string): Promise<FrameI
                 ],
                 gotoOptions: {
                     waitUntil: 'networkidle2',
-                    timeout: 45000
+                    timeout: 25000
                 }
-            })
+            }),
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             throw new Error(`Browserless API error: ${response.status}`);
@@ -126,12 +134,13 @@ export async function extractFrameIoComments(frameIoUrl: string): Promise<FrameI
         };
 
     } catch (error) {
-        console.error(`[Frame.io] Error:`, error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[Frame.io] Error extracting ${frameIoUrl}:`, errorMsg);
         return {
             url: frameIoUrl,
             assetName: '',
             comments: [],
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: errorMsg.includes('aborted') ? 'Timeout' : errorMsg
         };
     }
 }

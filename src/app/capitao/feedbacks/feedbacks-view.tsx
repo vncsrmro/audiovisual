@@ -65,6 +65,7 @@ interface EditorFeedbackData {
         alterationRate: number;
         totalFrameIoLinks: number;
         linksProcessed: number;
+        linksFailed?: number;
         totalFeedbacks: number;
     };
     errorPatterns: Array<{ category: string; count: number; percentage: number }>;
@@ -168,10 +169,7 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
                 return assignee && String(assignee.id) === editorId;
             });
 
-            console.log(`[FeedbacksView] Editor ${editorId}: found ${editorTasksData.length} tasks`);
-
             const tasksWithAlteration = editorTasksData.filter(d => d.hadAlteration && d.frameIoLinks.length > 0);
-            console.log(`[FeedbacksView] Tasks with alteration and Frame.io links: ${tasksWithAlteration.length}`);
 
             const frameIoLinks = tasksWithAlteration.flatMap(d =>
                 d.frameIoLinks.map(url => ({
@@ -179,7 +177,6 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
                     taskName: d.task.name
                 }))
             );
-            console.log(`[FeedbacksView] Frame.io links to process:`, frameIoLinks);
 
             const editorInfo = editorStatsMap[editorId];
 
@@ -389,6 +386,9 @@ export function FeedbacksView({ tasks, feedbackData, currentAlterationTasks, las
                             {/* Info */}
                             <div className="text-xs text-gray-600 text-center">
                                 {editorData.stats.linksProcessed} de {editorData.stats.totalFrameIoLinks} links analisados
+                                {(editorData.stats.linksFailed ?? 0) > 0 && (
+                                    <span className="text-yellow-500"> • {editorData.stats.linksFailed} falharam (timeout)</span>
+                                )}
                             </div>
                         </div>
                     )}

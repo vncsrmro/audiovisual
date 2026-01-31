@@ -4,6 +4,23 @@ import { extractFrameIoComments, categorizeComment, FeedbackCategory } from '@/l
 
 export const maxDuration = 60;
 
+// Process links in batches to avoid overwhelming Browserless
+async function processBatch<T, R>(
+    items: T[],
+    batchSize: number,
+    processor: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = [];
+
+    for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        const batchResults = await Promise.all(batch.map(processor));
+        results.push(...batchResults);
+    }
+
+    return results;
+}
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -25,8 +42,8 @@ export async function POST(request: Request) {
         console.log(`[Editor Feedback] Processing for: ${name} (ID: ${editorIdNum})`);
         console.log(`[Editor Feedback] Received ${frameIoLinks?.length || 0} Frame.io links`);
 
-        // Process Frame.io links (limit to 3 to avoid timeout)
-        const urlsToProcess = (frameIoLinks || []).slice(0, 3);
+        // Process ALL links in batches of 5 (parallel within batch)
+        const allLinks = frameIoLinks || [];
 
         const errorPatterns: Record<FeedbackCategory, number> = {
             'Áudio/Voz': 0,
@@ -48,29 +65,51 @@ export async function POST(request: Request) {
             taskName: string;
         }> = [];
 
-        for (const linkData of urlsToProcess) {
+        let linksProcessed = 0;
+        let linksFailed = 0;
+
+        // Process in batches of 5, each link has 30s timeout
+        const results = await processBatch(allLinks, 5, async (linkData: any) => {
             const url = typeof linkData === 'string' ? linkData : linkData.url;
             const taskName = typeof linkData === 'string' ? 'Unknown' : (linkData.taskName || 'Unknown');
 
             console.log(`[Editor Feedback] Extracting: ${url}`);
 
             try {
-                const feedback = await extractFrameIoComments(url);
+                const feedback = await extractFrameIoComments(url, 25000); // 25s timeout per link
 
-                feedback.comments.forEach(c => {
+                if (feedback.error) {
+                    linksFailed++;
+                    return { url, success: false, comments: [] };
+                }
+
+                linksProcessed++;
+
+                const processedComments = feedback.comments.map(c => {
                     const category = categorizeComment(c.text);
                     errorPatterns[category]++;
-                    allComments.push({
+                    return {
                         text: c.text,
                         category,
                         timestamp: c.timestamp,
                         taskName
-                    });
+                    };
                 });
+
+                return { url, success: true, comments: processedComments };
             } catch (err) {
                 console.error(`[Editor Feedback] Error extracting ${url}:`, err);
+                linksFailed++;
+                return { url, success: false, comments: [] };
             }
-        }
+        });
+
+        // Collect all comments from results
+        results.forEach(r => {
+            if (r.success && r.comments) {
+                allComments.push(...r.comments);
+            }
+        });
 
         const totalErrors = Object.values(errorPatterns).reduce((a, b) => a + b, 0);
 
@@ -82,6 +121,8 @@ export async function POST(request: Request) {
                 count,
                 percentage: totalErrors > 0 ? Math.round((count / totalErrors) * 100) : 0
             }));
+
+        console.log(`[Editor Feedback] Completed: ${linksProcessed} success, ${linksFailed} failed, ${totalErrors} feedbacks`);
 
         return NextResponse.json({
             success: true,
@@ -96,12 +137,13 @@ export async function POST(request: Request) {
                 alterationRate: totalTasks > 0
                     ? Math.round(((tasksWithAlteration || 0) / totalTasks) * 100)
                     : 0,
-                totalFrameIoLinks: frameIoLinks?.length || 0,
-                linksProcessed: urlsToProcess.length,
+                totalFrameIoLinks: allLinks.length,
+                linksProcessed,
+                linksFailed,
                 totalFeedbacks: totalErrors
             },
             errorPatterns: topErrors,
-            recentComments: allComments.slice(0, 10),
+            recentComments: allComments.slice(0, 15), // Show last 15 comments
             updatedAt: Date.now()
         });
 
